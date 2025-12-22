@@ -1,0 +1,1224 @@
+/* =========================================================================
+   DARK WEB BROWSER - Main Styles
+   ========================================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Browser Window Container */
+.browser-window {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  background: #0d0d0d;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+/* =========================================================================
+   BROWSER CHROME
+   ========================================================================= */
+
+.browser-chrome {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #1a1a1a 0%, #141414 100%);
+  border-bottom: 1px solid #333;
+}
+
+/* Title Bar */
+.browser-titlebar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #222;
+}
+
+.window-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.window-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.window-btn.close {
+  background: #ff5f57;
+}
+
+.window-btn.close:hover {
+  background: #ff3b30;
+}
+
+.window-btn.minimize {
+  background: #ffbd2e;
+}
+
+.window-btn.maximize {
+  background: #28c940;
+}
+
+.browser-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+}
+
+.window-spacer {
+  width: 60px;
+}
+
+/* Toolbar */
+.browser-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #161616;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: #252525;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #333;
+  color: #fff;
+}
+
+.nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Address Bar */
+.address-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: #0a0a0a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 0 12px;
+  height: 32px;
+}
+
+.protocol {
+  color: #666;
+  font-size: 13px;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.url-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #00ff00;
+  font-size: 13px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  outline: none;
+}
+
+.secure-icon {
+  color: #00ff00;
+  font-size: 14px;
+}
+
+/* Tab Bar */
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  background: #0f0f0f;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #1a1a1a;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  background: #252525;
+}
+
+.tab.active {
+  background: #1e1e1e;
+  border-color: #333;
+  border-bottom-color: #1e1e1e;
+}
+
+.tab-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #aaa;
+}
+
+.tab.active .tab-name {
+  color: #fff;
+}
+
+/* =========================================================================
+   BROWSER CONTENT AREA
+   ========================================================================= */
+
+.browser-content {
+  flex: 1;
+  overflow-y: auto;
+  background: #1e1e1e;
+}
+
+/* Website Base */
+.website {
+  min-height: 100%;
+  padding: 20px;
+}
+
+/* Site Header */
+.site-header {
+  text-align: center;
+  padding: 24px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+}
+
+.site-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.site-tagline {
+  font-size: 1rem;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.site-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* =========================================================================
+   HOTWHEELS SITE - Red Theme
+   ========================================================================= */
+
+.hotwheels-site .site-header {
+  background: linear-gradient(135deg, rgba(139, 0, 0, 0.8), rgba(80, 0, 0, 0.9));
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  box-shadow: 0 4px 20px rgba(139, 0, 0, 0.4);
+}
+
+.hotwheels-site .site-title {
+  color: #fff;
+}
+
+.hotwheels-site .site-tagline {
+  color: #fca5a5;
+}
+
+/* Job Cards */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.job-card {
+  background: rgba(30, 30, 30, 0.9);
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.job-card:hover {
+  background: rgba(40, 40, 40, 0.95);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Tier styling */
+.job-card.tier-economy {
+  border-left: 4px solid #9ca3af;
+}
+
+.job-card.tier-midrange {
+  border-left: 4px solid #3b82f6;
+}
+
+.job-card.tier-premium {
+  border-left: 4px solid #f59e0b;
+}
+
+/* State styling */
+.job-card.state-unlocked {
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(30, 50, 30, 0.9);
+}
+
+.job-card.state-active {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(50, 40, 20, 0.9);
+}
+
+.job-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.job-tier {
+  font-size: 1.1rem;
+}
+
+.job-card.tier-economy .job-tier { color: #9ca3af; }
+.job-card.tier-midrange .job-tier { color: #3b82f6; }
+.job-card.tier-premium .job-tier { color: #f59e0b; }
+
+.job-name {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.job-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding-left: 4px;
+}
+
+.job-detail {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-label {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.detail-value.fee {
+  color: #f59e0b;
+}
+
+.job-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-active {
+  flex: 1;
+  text-align: center;
+  padding: 10px;
+  background: rgba(251, 191, 36, 0.2);
+  border-radius: 6px;
+  color: #fbbf24;
+  font-weight: 500;
+}
+
+/* =========================================================================
+   BLACK MARKET SITE - Orange/Gold Theme
+   ========================================================================= */
+
+.blackmarket-site .site-header {
+  background: linear-gradient(135deg, rgba(120, 80, 0, 0.8), rgba(80, 50, 0, 0.9));
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 20px rgba(120, 80, 0, 0.4);
+}
+
+.blackmarket-site .site-title {
+  color: #fbbf24;
+}
+
+.blackmarket-site .site-tagline {
+  color: #fcd34d;
+}
+
+/* Sub Navigation */
+.sub-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #333;
+}
+
+.sub-nav-btn {
+  padding: 10px 24px;
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #aaa;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sub-nav-btn:hover {
+  background: #333;
+  color: #fff;
+}
+
+.sub-nav-btn.active {
+  background: linear-gradient(135deg, #b45309, #92400e);
+  border-color: #f59e0b;
+  color: #fff;
+}
+
+/* Listings Grid */
+.listings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.listing-card {
+  background: rgba(30, 30, 30, 0.9);
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.listing-card:hover {
+  border-color: rgba(245, 158, 11, 0.4);
+  transform: translateY(-2px);
+}
+
+.listing-card.player-listing {
+  border-left: 4px solid #22c55e;
+}
+
+.listing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.listing-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.listing-reputation {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.listing-reputation.rep-good {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.listing-reputation.rep-sketchy {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.listing-price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f59e0b;
+  margin-bottom: 12px;
+}
+
+.listing-offers {
+  font-size: 0.85rem;
+  color: #4ade80;
+  margin-bottom: 8px;
+}
+
+/* Cart Section */
+.cart-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  border: 1px solid #333;
+}
+
+.cart-section h3 {
+  margin: 0 0 16px 0;
+  color: #f59e0b;
+}
+
+.cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.cart-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+}
+
+.btn-remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-remove:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.cart-total {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+  text-align: right;
+  margin-bottom: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #333;
+}
+
+/* =========================================================================
+   LEGITDOCS SITE - Green Theme
+   ========================================================================= */
+
+.legitdocs-site .site-header {
+  background: linear-gradient(135deg, rgba(0, 100, 50, 0.8), rgba(0, 60, 30, 0.9));
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 100, 50, 0.4);
+}
+
+.legitdocs-site .site-title {
+  color: #4ade80;
+}
+
+.legitdocs-site .site-tagline {
+  color: #86efac;
+}
+
+/* Info Box */
+.info-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.info-box p {
+  margin: 0 0 12px 0;
+  color: #f87171;
+}
+
+.info-box ul {
+  margin: 0 0 16px 20px;
+  padding: 0;
+  color: #fca5a5;
+}
+
+.info-box li {
+  margin-bottom: 6px;
+}
+
+.doc-fee {
+  font-size: 1.1rem;
+  color: #4ade80 !important;
+  padding-top: 12px;
+  border-top: 1px solid #333;
+  margin-bottom: 0 !important;
+}
+
+/* Vehicles List */
+.vehicles-list h3 {
+  margin: 0 0 16px 0;
+  color: #fff;
+}
+
+.vehicle-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  background: rgba(30, 30, 30, 0.9);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vehicle-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vehicle-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.vehicle-status {
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.vehicle-status.undocumented {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.vehicle-status.documented {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.vehicle-value {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+/* =========================================================================
+   COMMON COMPONENTS
+   ========================================================================= */
+
+/* Loading & Empty States */
+.loading-message,
+.empty-message {
+  text-align: center;
+  padding: 48px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  color: #888;
+}
+
+.loading-message p,
+.empty-message p {
+  margin: 8px 0;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #333;
+  border-top-color: #888;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Buttons */
+.btn-action {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-action:hover:not(.btn-disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-unlock {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: white;
+}
+
+.btn-unlock:hover:not(.btn-disabled) {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.btn-gps {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+}
+
+.btn-gps:hover {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.btn-cart {
+  background: linear-gradient(135deg, #b45309, #92400e);
+  color: white;
+}
+
+.btn-cart:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+.btn-checkout {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #000;
+  font-weight: 600;
+}
+
+.btn-checkout:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+}
+
+.btn-document {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+}
+
+.btn-document:hover:not(.btn-disabled) {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.btn-disabled {
+  background: #3a3a3a !important;
+  color: #666 !important;
+  cursor: not-allowed;
+}
+
+.btn-continue {
+  background: linear-gradient(135deg, #4b5563, #374151);
+  color: white;
+  margin-top: 16px;
+}
+
+.btn-continue:hover {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
+}
+
+/* Listing extra info */
+.listing-seller {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.listing-description {
+  font-size: 0.8rem;
+  color: #666;
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.listing-card.in-cart {
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(30, 50, 30, 0.9);
+}
+
+/* Checkout Results */
+.checkout-results {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.checkout-results h3 {
+  margin: 0 0 20px 0;
+  font-size: 1.4rem;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.result-item {
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid #666;
+}
+
+.result-item.outcome-success {
+  background: rgba(34, 197, 94, 0.15);
+  border-left-color: #22c55e;
+}
+
+.result-item.outcome-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border-left-color: #f59e0b;
+}
+
+.result-item.outcome-danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-left-color: #ef4444;
+}
+
+.result-vehicle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.result-outcome {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.outcome-success .result-outcome {
+  color: #4ade80;
+}
+
+.outcome-warning .result-outcome {
+  color: #fbbf24;
+}
+
+.outcome-danger .result-outcome {
+  color: #f87171;
+}
+
+.result-message {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.results-total {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+  text-align: right;
+  padding-top: 16px;
+  border-top: 1px solid #333;
+}
+
+/* =========================================================================
+   BROWSER STATUS BAR
+   ========================================================================= */
+
+.browser-statusbar {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 16px;
+  background: #0a0a0a;
+  border-top: 1px solid #222;
+  font-size: 12px;
+}
+
+.connection-status {
+  color: #00ff00;
+}
+
+.balance {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+/* =========================================================================
+   RESPONSIVE
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .browser-toolbar {
+    padding: 6px 8px;
+  }
+
+  .tab {
+    padding: 8px 12px;
+  }
+
+  .website {
+    padding: 12px;
+  }
+
+  .site-title {
+    font-size: 1.5rem;
+  }
+
+  .listings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .job-details {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .job-actions {
+    flex-direction: column;
+  }
+
+  .vehicle-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* =========================================================================
+   PLAYER SELL FUNCTIONALITY
+   ========================================================================= */
+
+.doc-status {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.doc-status.has-docs {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.doc-status.no-docs {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.listing-value {
+  font-size: 0.9rem;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.listing-actions {
+  margin-top: 8px;
+}
+
+.price-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.price-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.price-input:focus {
+  outline: none;
+  border-color: #f59e0b;
+}
+
+.btn-list {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+  white-space: nowrap;
+}
+
+.btn-list:hover {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.sell-hint {
+  font-size: 0.8rem;
+  color: #f87171;
+  margin: 8px 0 0 0;
+}
+
+.listed-info {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.offers-section {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.offer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 6px;
+}
+
+.offer-buyer {
+  flex: 1;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.offer-amount {
+  font-weight: 600;
+  color: #4ade80;
+  font-size: 1rem;
+}
+
+.btn-accept-offer {
+  padding: 6px 16px;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+  flex: 0;
+}
+
+.btn-accept-offer:hover {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.no-offers {
+  color: #666;
+  font-style: italic;
+  padding: 12px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.btn-unlist {
+  width: 100%;
+  margin-top: 12px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.btn-unlist:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* =========================================================================
+   LEGITDOCS - TIERED DOCUMENTATION SYSTEM
+   ========================================================================= */
+
+.tier-options {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tier-option {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  border: 2px solid transparent;
+}
+
+.tier-option:hover:not(.btn-disabled) {
+  transform: translateY(-2px);
+}
+
+.tier-option.btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tier-option.tier-budget {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.tier-option.tier-budget:hover:not(.btn-disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.tier-option.tier-standard {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.4);
+}
+
+.tier-option.tier-standard:hover:not(.btn-disabled) {
+  background: rgba(234, 179, 8, 0.25);
+}
+
+.tier-option.tier-premium {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.tier-option.tier-premium:hover:not(.btn-disabled) {
+  background: rgba(34, 197, 94, 0.25);
+}
+
+.tier-name {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.tier-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #a0a0a0;
+}
+
+.tier-price {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.tier-time {
+  color: #60a5fa;
+}
+
+.tier-risk {
+  font-weight: 500;
+}
+
+.tier-risk.risk-high {
+  color: #f87171;
+}
+
+.tier-risk.risk-med {
+  color: #fbbf24;
+}
+
+.tier-risk.risk-low {
+  color: #4ade80;
+}
+
+.pending-status {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+}
+
+.pending-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.pending-tier {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pending-tier.tier-budget {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.pending-tier.tier-standard {
+  background: rgba(234, 179, 8, 0.2);
+  color: #fbbf24;
+}
+
+.pending-tier.tier-premium {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.pending-time {
+  color: #60a5fa;
+}
+
+.pending-ready {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.btn-collect {
+  width: 100%;
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+}
+
+.btn-collect:hover {
+  background: rgba(34, 197, 94, 0.3);
+}
+
+.message-box {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.message-success {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+.message-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.doc-note {
+  font-style: italic;
+  color: #fbbf24;
+  margin-top: 8px;
+}

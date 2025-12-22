@@ -1,0 +1,380 @@
+<link rel="stylesheet" type="text/css" href="/ui/modModules/backalley/backalley.css" />
+
+<div class="browser-window">
+    <!-- Browser Chrome -->
+    <div class="browser-chrome">
+        <!-- Title Bar -->
+        <div class="browser-titlebar">
+            <div class="window-controls">
+                <span class="window-btn close" ng-click="closeBrowser()"></span>
+                <span class="window-btn minimize"></span>
+                <span class="window-btn maximize"></span>
+            </div>
+            <div class="browser-title">{{browserTitle}}</div>
+            <div class="window-spacer"></div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="browser-toolbar">
+            <div class="nav-buttons">
+                <button class="nav-btn" disabled title="Back">&#9664;</button>
+                <button class="nav-btn" disabled title="Forward">&#9654;</button>
+                <button class="nav-btn" ng-click="refreshCurrentSite()" title="Refresh">&#8635;</button>
+            </div>
+            <div class="address-bar">
+                <span class="protocol">http://</span>
+                <input type="text" ng-model="currentUrl" readonly class="url-input" />
+                <span class="secure-icon" title="Secure Connection">&#128274;</span>
+            </div>
+        </div>
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <div class="tab"
+                 ng-repeat="bookmark in bookmarks"
+                 ng-class="{active: currentSite === bookmark.site}"
+                 ng-click="navigateTo(bookmark.site)">
+                <span class="tab-name">{{bookmark.name}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Browser Content Area -->
+    <div class="browser-content">
+
+        <!-- ================================================================= -->
+        <!-- HOTWHEELS SITE - Car Theft Jobs -->
+        <!-- ================================================================= -->
+        <div class="website hotwheels-site" ng-if="currentSite === 'hotwheels'">
+            <div class="site-header">
+                <h1 class="site-title">&#128293; Hot Wheels</h1>
+                <p class="site-tagline">Premium Vehicle Acquisition Services</p>
+            </div>
+
+            <div class="site-content">
+                <!-- Loading state -->
+                <div ng-if="hotWheelsData.loading" class="loading-message">
+                    <div class="loading-spinner"></div>
+                    <p>Loading available jobs...</p>
+                </div>
+
+                <!-- No jobs state -->
+                <div ng-if="!hotWheelsData.loading && hotWheelsData.jobs.length === 0" class="empty-message">
+                    <p>No car theft jobs available right now.</p>
+                    <p>Check back later for new opportunities.</p>
+                </div>
+
+                <!-- Job cards -->
+                <div class="jobs-list" ng-if="!hotWheelsData.loading && hotWheelsData.jobs.length > 0">
+                    <div class="job-card"
+                         ng-repeat="job in hotWheelsData.jobs"
+                         ng-class="[getTierClass(job.tier), getStateClass(job.state)]">
+
+                        <div class="job-header">
+                            <span class="job-tier">{{getTierStars(job.tier)}}</span>
+                            <span class="job-name">{{job.vehicleName}}</span>
+                        </div>
+
+                        <div class="job-details">
+                            <div class="job-detail">
+                                <span class="detail-label">Location:</span>
+                                <span class="detail-value">{{job.area}}</span>
+                            </div>
+                            <div class="job-detail" ng-if="job.state === 'available'">
+                                <span class="detail-label">Intel Fee:</span>
+                                <span class="detail-value fee">{{formatMoney(job.fee)}}</span>
+                            </div>
+                        </div>
+
+                        <div class="job-actions">
+                            <!-- Available: Show unlock button -->
+                            <button ng-if="job.state === 'available'"
+                                    ng-click="unlockJob(job)"
+                                    ng-disabled="!canAfford(job.fee)"
+                                    class="btn-action btn-unlock"
+                                    ng-class="{'btn-disabled': !canAfford(job.fee)}">
+                                <span ng-if="canAfford(job.fee)">Buy Intel ({{formatMoney(job.fee)}})</span>
+                                <span ng-if="!canAfford(job.fee)">Need {{formatMoney(job.fee)}}</span>
+                            </button>
+
+                            <!-- Unlocked/Spawned: Show GPS button -->
+                            <button ng-if="job.state === 'unlocked' || job.state === 'spawned'"
+                                    ng-click="setGPS(job)"
+                                    class="btn-action btn-gps">
+                                &#128205; Set GPS
+                            </button>
+
+                            <!-- Active: Show status -->
+                            <div ng-if="job.state === 'active'" class="status-active">
+                                &#9881; In Progress...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- BLACK MARKET SITE - Buy/Sell Undocumented Cars -->
+        <!-- ================================================================= -->
+        <div class="website blackmarket-site" ng-if="currentSite === 'blackmarket'">
+            <div class="site-header">
+                <h1 class="site-title">&#128176; Black Market</h1>
+                <p class="site-tagline">No Papers. No Questions. No Guarantees.</p>
+            </div>
+
+            <!-- Sub-navigation -->
+            <div class="sub-nav">
+                <button class="sub-nav-btn"
+                        ng-class="{active: blackMarketData.view === 'browse'}"
+                        ng-click="setBlackMarketView('browse')">
+                    Browse Listings
+                </button>
+                <button class="sub-nav-btn"
+                        ng-class="{active: blackMarketData.view === 'sell'}"
+                        ng-click="setBlackMarketView('sell')">
+                    Sell Your Cars
+                </button>
+            </div>
+
+            <div class="site-content">
+                <!-- Browse View -->
+                <div ng-if="blackMarketData.view === 'browse'">
+                    <div ng-if="blackMarketData.loading" class="loading-message">
+                        <div class="loading-spinner"></div>
+                        <p>Loading listings...</p>
+                    </div>
+
+                    <div ng-if="!blackMarketData.loading && blackMarketData.listings.length === 0" class="empty-message">
+                        <p>&#9888; No vehicles currently listed.</p>
+                        <p>Sellers come and go. Check back soon.</p>
+                    </div>
+
+                    <!-- Checkout Results -->
+                    <div class="checkout-results" ng-if="blackMarketData.checkoutResult">
+                        <h3 ng-if="blackMarketData.checkoutResult.success">&#128230; Purchase Complete</h3>
+                        <h3 ng-if="!blackMarketData.checkoutResult.success">&#10060; Purchase Failed</h3>
+
+                        <div ng-if="blackMarketData.checkoutResult.results" class="results-list">
+                            <div class="result-item" ng-repeat="res in blackMarketData.checkoutResult.results"
+                                 ng-class="getOutcomeClass(res.outcome)">
+                                <div class="result-vehicle">{{res.vehicleName}}</div>
+                                <div class="result-outcome">
+                                    <span ng-if="res.outcome === 'legit'">&#10004; Delivered!</span>
+                                    <span ng-if="res.outcome === 'clunker'">&#9888; Got a junker instead!</span>
+                                    <span ng-if="res.outcome === 'scam'">&#10060; SCAMMED!</span>
+                                </div>
+                                <div class="result-message">{{res.message}}</div>
+                            </div>
+                        </div>
+
+                        <div ng-if="blackMarketData.checkoutResult.totalPaid" class="results-total">
+                            Total Paid: {{formatMoney(blackMarketData.checkoutResult.totalPaid)}}
+                        </div>
+
+                        <button class="btn-action btn-continue" ng-click="blackMarketData.checkoutResult = null">
+                            Continue Shopping
+                        </button>
+                    </div>
+
+                    <div class="listings-grid" ng-if="!blackMarketData.loading && blackMarketData.listings.length > 0 && !blackMarketData.checkoutResult">
+                        <div class="listing-card" ng-repeat="listing in blackMarketData.listings"
+                             ng-class="{'in-cart': isInCart(listing)}">
+                            <div class="listing-header">
+                                <span class="listing-name">{{listing.vehicleName}}</span>
+                            </div>
+                            <div class="listing-seller">Seller: {{listing.sellerName}}</div>
+                            <div class="listing-description">{{listing.description}}</div>
+                            <div class="listing-price">{{formatMoney(listing.price)}}</div>
+                            <button class="btn-action btn-cart"
+                                    ng-click="addToCart(listing)"
+                                    ng-disabled="isInCart(listing)"
+                                    ng-class="{'btn-disabled': isInCart(listing)}">
+                                <span ng-if="!isInCart(listing)">Add to Cart</span>
+                                <span ng-if="isInCart(listing)">&#10004; In Cart</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cart -->
+                    <div class="cart-section" ng-if="blackMarketData.cart.length > 0 && !blackMarketData.checkoutResult">
+                        <h3>&#128722; Your Cart</h3>
+                        <div class="cart-items">
+                            <div class="cart-item" ng-repeat="item in blackMarketData.cart">
+                                <span>{{item.vehicleName}}</span>
+                                <span>{{formatMoney(item.price)}}</span>
+                                <button class="btn-remove" ng-click="removeFromCart(item)">X</button>
+                            </div>
+                        </div>
+                        <div class="cart-total">
+                            Total: {{formatMoney(getCartTotal())}}
+                        </div>
+                        <button class="btn-action btn-checkout"
+                                ng-click="checkout()"
+                                ng-disabled="!canAfford(getCartTotal())">
+                            &#128176; Checkout
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sell View -->
+                <div ng-if="blackMarketData.view === 'sell'">
+                    <div ng-if="blackMarketData.loading" class="loading-message">
+                        <div class="loading-spinner"></div>
+                        <p>Loading your inventory...</p>
+                    </div>
+
+                    <div ng-if="!blackMarketData.loading && blackMarketData.playerListings.length === 0" class="empty-message">
+                        <p>You have no stolen vehicles to sell.</p>
+                        <p>Acquire some rides first!</p>
+                    </div>
+
+                    <div class="listings-grid" ng-if="!blackMarketData.loading && blackMarketData.playerListings.length > 0">
+                        <div class="listing-card player-listing" ng-repeat="listing in blackMarketData.playerListings">
+                            <div class="listing-header">
+                                <span class="listing-name">{{listing.vehicleName}}</span>
+                                <span class="doc-status" ng-class="{'has-docs': listing.hasDocuments, 'no-docs': !listing.hasDocuments}">
+                                    {{listing.hasDocuments ? '&#128196; Documented' : '&#9888; No Docs'}}
+                                </span>
+                            </div>
+                            <div class="listing-value">Est. Value: {{formatMoney(listing.value)}}</div>
+
+                            <!-- Not listed yet -->
+                            <div ng-if="!listing.isListed" class="listing-actions">
+                                <div class="price-input-row">
+                                    <input type="number" ng-model="listing.inputPrice" placeholder="Asking price..."
+                                           ng-init="listing.inputPrice = listing.value" class="price-input" />
+                                    <button class="btn-action btn-list" ng-click="listForSale(listing)">
+                                        List for Sale
+                                    </button>
+                                </div>
+                                <p class="sell-hint" ng-if="!listing.hasDocuments">&#9888; Without docs, expect 40% less offers</p>
+                            </div>
+
+                            <!-- Already listed -->
+                            <div ng-if="listing.isListed" class="listed-info">
+                                <div class="listing-price">Asking: {{formatMoney(listing.askingPrice)}}</div>
+
+                                <!-- Offers -->
+                                <div class="offers-section" ng-if="listing.offers.length > 0">
+                                    <div class="offer-item" ng-repeat="offer in listing.offers">
+                                        <span class="offer-buyer">{{offer.buyerName}}</span>
+                                        <span class="offer-amount">{{formatMoney(offer.amount)}}</span>
+                                        <button class="btn-action btn-accept-offer" ng-click="acceptOffer(listing, $index)">
+                                            Accept
+                                        </button>
+                                    </div>
+                                </div>
+                                <div ng-if="listing.offers.length === 0" class="no-offers">
+                                    Waiting for buyers...
+                                </div>
+
+                                <button class="btn-action btn-unlist" ng-click="unlistVehicle(listing)">
+                                    Remove Listing
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- LEGITDOCS SITE - Documentation Service (Tiered) -->
+        <!-- ================================================================= -->
+        <div class="website legitdocs-site" ng-if="currentSite === 'legitdocs'">
+            <div class="site-header">
+                <h1 class="site-title">&#128196; Legit Docs</h1>
+                <p class="site-tagline">Professional Documentation Services - Make It Legal</p>
+            </div>
+
+            <div class="site-content">
+                <div class="info-box">
+                    <p>&#9888; <strong>Without documentation:</strong></p>
+                    <ul>
+                        <li>Police may detect your stolen vehicle</li>
+                        <li>Cannot sell through legitimate dealers</li>
+                        <li>Cannot purchase insurance</li>
+                    </ul>
+                    <p class="doc-note">Choose your document quality - better docs = less risk of detection!</p>
+                </div>
+
+                <!-- Message display -->
+                <div ng-if="legitDocsData.message" class="message-box"
+                     ng-class="{'message-success': legitDocsData.message.type === 'success', 'message-error': legitDocsData.message.type === 'error'}">
+                    {{legitDocsData.message.text}}
+                </div>
+
+                <div ng-if="legitDocsData.loading" class="loading-message">
+                    <div class="loading-spinner"></div>
+                    <p>Scanning your inventory...</p>
+                </div>
+
+                <div ng-if="!legitDocsData.loading && legitDocsData.vehicles.length === 0" class="empty-message">
+                    <p>&#10004; All your vehicles have proper documentation.</p>
+                    <p>Nothing to process here.</p>
+                </div>
+
+                <div class="vehicles-list" ng-if="!legitDocsData.loading && legitDocsData.vehicles.length > 0">
+                    <h3>Undocumented Vehicles</h3>
+                    <div class="vehicle-card" ng-repeat="vehicle in legitDocsData.vehicles">
+                        <div class="vehicle-info">
+                            <span class="vehicle-name">{{vehicle.name}}</span>
+                            <span class="vehicle-value">Value: {{formatMoney(vehicle.value)}}</span>
+                        </div>
+
+                        <!-- Pending: Show status -->
+                        <div ng-if="vehicle.pending" class="pending-status">
+                            <div class="pending-info">
+                                <span class="pending-tier" ng-class="getTierClass(vehicle.tier)">{{vehicle.tier | uppercase}} docs</span>
+                                <span class="pending-time" ng-if="!vehicle.ready">Processing: {{formatTime(vehicle.remainingSeconds)}}</span>
+                                <span class="pending-ready" ng-if="vehicle.ready">&#10004; READY!</span>
+                            </div>
+                            <button ng-if="vehicle.ready" class="btn-action btn-collect" ng-click="collectDocuments(vehicle)">
+                                &#128230; Collect Documents
+                            </button>
+                        </div>
+
+                        <!-- Not pending: Show tier options -->
+                        <div ng-if="!vehicle.pending" class="tier-options">
+                            <div class="tier-option tier-budget" ng-click="orderDocuments(vehicle, 'budget')"
+                                 ng-class="{'btn-disabled': !canAfford(getTierFee(vehicle, 'budget'))}">
+                                <div class="tier-name">&#9889; Budget</div>
+                                <div class="tier-details">
+                                    <span class="tier-price">{{formatMoney(getTierFee(vehicle, 'budget'))}}</span>
+                                    <span class="tier-time">1 hour</span>
+                                    <span class="tier-risk risk-high">{{getDetectRisk('budget')}} risk</span>
+                                </div>
+                            </div>
+                            <div class="tier-option tier-standard" ng-click="orderDocuments(vehicle, 'standard')"
+                                 ng-class="{'btn-disabled': !canAfford(getTierFee(vehicle, 'standard'))}">
+                                <div class="tier-name">&#128196; Standard</div>
+                                <div class="tier-details">
+                                    <span class="tier-price">{{formatMoney(getTierFee(vehicle, 'standard'))}}</span>
+                                    <span class="tier-time">4 hours</span>
+                                    <span class="tier-risk risk-med">{{getDetectRisk('standard')}} risk</span>
+                                </div>
+                            </div>
+                            <div class="tier-option tier-premium" ng-click="orderDocuments(vehicle, 'premium')"
+                                 ng-class="{'btn-disabled': !canAfford(getTierFee(vehicle, 'premium'))}">
+                                <div class="tier-name">&#11088; Premium</div>
+                                <div class="tier-details">
+                                    <span class="tier-price">{{formatMoney(getTierFee(vehicle, 'premium'))}}</span>
+                                    <span class="tier-time">12 hours</span>
+                                    <span class="tier-risk risk-low">{{getDetectRisk('premium')}} risk</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Browser Status Bar -->
+    <div class="browser-statusbar">
+        <span class="connection-status">&#128274; Secure Connection</span>
+        <span class="balance">Balance: {{formatMoney(playerMoney)}}</span>
+    </div>
+</div>
