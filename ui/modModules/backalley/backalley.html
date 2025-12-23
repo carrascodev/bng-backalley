@@ -115,6 +115,72 @@
         </div>
 
         <!-- ================================================================= -->
+        <!-- MY RIDES SITE - Vehicle Status -->
+        <!-- ================================================================= -->
+        <div class="website myrides-site" ng-if="currentSite === 'myrides'">
+            <div class="site-header">
+                <h1 class="site-title">&#128663; My Rides</h1>
+                <p class="site-tagline">Your Stolen Vehicle Fleet Status</p>
+            </div>
+
+            <div class="site-content">
+                <div ng-if="myRidesData.loading" class="loading-message">
+                    <div class="loading-spinner"></div>
+                    <p>Loading vehicle status...</p>
+                </div>
+
+                <div ng-if="!myRidesData.loading && myRidesData.vehicles.length === 0" class="empty-message">
+                    <p>No stolen vehicles in your inventory.</p>
+                    <p>Visit <a class="link-text" ng-click="navigateTo('hotwheels')">Hot Wheels</a> to find jobs!</p>
+                </div>
+
+                <div class="vehicle-status-list" ng-if="!myRidesData.loading && myRidesData.vehicles.length > 0">
+                    <div class="vehicle-status-card" ng-repeat="veh in myRidesData.vehicles">
+                        <div class="vehicle-card-header">
+                            <span class="vehicle-card-name">{{veh.name}}</span>
+                            <span class="vehicle-card-value">{{formatMoney(veh.value)}}</span>
+                        </div>
+
+                        <div class="status-row">
+                            <span class="status-label">Heat Level</span>
+                            <div class="heat-meter-container">
+                                <div class="heat-meter">
+                                    <div class="heat-fill" ng-class="getHeatClass(veh.heat)"
+                                         ng-style="{'width': veh.heat + '%'}"></div>
+                                </div>
+                                <span class="heat-value" ng-class="getHeatClass(veh.heat)">{{veh.heat}}%</span>
+                            </div>
+                        </div>
+
+                        <div class="status-row">
+                            <span class="status-label">Documentation</span>
+                            <span class="status-value" ng-class="getDocStatusClass(veh)">
+                                {{getDocStatus(veh)}}
+                            </span>
+                        </div>
+
+                        <div class="status-row" ng-if="veh.hasDocuments">
+                            <span class="status-label">Detection Risk</span>
+                            <span class="status-value risk-value">
+                                {{(veh.detectChance * 100).toFixed(0)}}%
+                            </span>
+                        </div>
+
+                        <div class="vehicle-card-actions">
+                            <button class="btn-action btn-docs" ng-click="navigateTo('legitdocs')"
+                                    ng-if="!veh.hasDocuments && !veh.pendingDoc">
+                                &#128196; Get Documents
+                            </button>
+                            <button class="btn-action btn-sell" ng-click="navigateTo('blackmarket')">
+                                &#128176; Sell Vehicle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
         <!-- BLACK MARKET SITE - Buy/Sell Undocumented Cars -->
         <!-- ================================================================= -->
         <div class="website blackmarket-site" ng-if="currentSite === 'blackmarket'">
@@ -327,7 +393,7 @@
                         <div ng-if="vehicle.pending" class="pending-status">
                             <div class="pending-info">
                                 <span class="pending-tier" ng-class="getTierClass(vehicle.tier)">{{vehicle.tier | uppercase}} docs</span>
-                                <span class="pending-time" ng-if="!vehicle.ready">Processing: {{formatTime(vehicle.remainingSeconds)}}</span>
+                                <span class="pending-time" ng-if="!vehicle.ready">{{formatTime(vehicle.remainingHours)}} remaining</span>
                                 <span class="pending-ready" ng-if="vehicle.ready">&#10004; READY!</span>
                             </div>
                             <button ng-if="vehicle.ready" class="btn-action btn-collect" ng-click="collectDocuments(vehicle)">
@@ -342,7 +408,7 @@
                                 <div class="tier-name">&#9889; Budget</div>
                                 <div class="tier-details">
                                     <span class="tier-price">{{formatMoney(getTierFee(vehicle, 'budget'))}}</span>
-                                    <span class="tier-time">1 hour</span>
+                                    <span class="tier-time">{{getTierTime('budget')}}</span>
                                     <span class="tier-risk risk-high">{{getDetectRisk('budget')}} risk</span>
                                 </div>
                             </div>
@@ -351,7 +417,7 @@
                                 <div class="tier-name">&#128196; Standard</div>
                                 <div class="tier-details">
                                     <span class="tier-price">{{formatMoney(getTierFee(vehicle, 'standard'))}}</span>
-                                    <span class="tier-time">4 hours</span>
+                                    <span class="tier-time">{{getTierTime('standard')}}</span>
                                     <span class="tier-risk risk-med">{{getDetectRisk('standard')}} risk</span>
                                 </div>
                             </div>
@@ -360,7 +426,7 @@
                                 <div class="tier-name">&#11088; Premium</div>
                                 <div class="tier-details">
                                     <span class="tier-price">{{formatMoney(getTierFee(vehicle, 'premium'))}}</span>
-                                    <span class="tier-time">12 hours</span>
+                                    <span class="tier-time">{{getTierTime('premium')}}</span>
                                     <span class="tier-risk risk-low">{{getDetectRisk('premium')}} risk</span>
                                 </div>
                             </div>

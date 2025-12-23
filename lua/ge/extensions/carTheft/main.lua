@@ -71,11 +71,9 @@ local theftJob = {
 -- Track spawned stealable vehicles (our own cars, not traffic)
 local spawnedStealableVehicles = {}
 
--- Document processing state (inventoryId -> {tier, orderTime, readyTime})
-local pendingDocuments = {}
-
--- Heat tracking for stolen vehicles (inventoryId -> {level, lastUpdate})
-local vehicleHeat = {}
+-- Note: Document processing and heat are now stored on vehicle inventory data
+-- See: veh.pendingDocTier, veh.pendingDocOrderTime, veh.pendingDocRequiredHours, veh.pendingDocReady
+-- See: veh.heatLevel, veh.heatLastUpdate
 
 -- Police inspection cooldown
 local lastInspectionTime = 0
@@ -648,17 +646,11 @@ local function confiscateVehicle(inventoryId, reason)
     })
   end
 
-  -- Remove from inventory
+  -- Remove from inventory (heat and pending docs are stored on vehicle, so they go with it)
   if career_modules_inventory and career_modules_inventory.removeVehicle then
     career_modules_inventory.removeVehicle(inventoryId)
     log("I", "Vehicle removed from inventory: " .. tostring(inventoryId))
   end
-
-  -- Clear heat tracking
-  vehicleHeat[tostring(inventoryId)] = nil
-
-  -- Clear any pending document orders
-  pendingDocuments[tostring(inventoryId)] = nil
 
   -- Delete vehicle from world and put player on foot
   local playerVehId = be:getPlayerVehicleID(0)
@@ -869,29 +861,77 @@ local function onQuickAccessLoaded()
 end
 
 ---------------------------------------------------------------------------
+-- Document Processing (game-time based)
+---------------------------------------------------------------------------
+
+-- Get current game time in seconds (uses BeamNG's time-of-day system)
+local function getGameTimeSeconds()
+  -- BeamNG tracks time as 0-1 representing 24 hours, plus a day counter
+  if core_environment and core_environment.getTimeOfDay then
+    local tod = core_environment.getTimeOfDay()
+    if tod then
+      local daySeconds = (tod.time or 0) * 86400  -- time is 0-1, convert to seconds in day
+      local dayNumber = tod.day or 0
+      return (dayNumber * 86400) + daySeconds
+    end
+  end
+  -- Fallback to real time if game time unavailable
+  return os.time()
+end
+
+-- Update document processing timers based on game time
+local function updateDocumentTimers(dtSim)
+  if not career_modules_inventory then return end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles then return end
+
+  local currentGameTime = getGameTimeSeconds()
+
+  for invId, veh in pairs(vehicles) do
+    -- Only process vehicles with pending documents
+    if veh.isStolen and veh.pendingDocTier and not veh.pendingDocReady then
+      local orderGameTime = veh.pendingDocOrderTime or currentGameTime
+      local elapsedSeconds = currentGameTime - orderGameTime
+      local requiredSeconds = (veh.pendingDocRequiredHours or 8) * 3600
+
+      if elapsedSeconds >= requiredSeconds then
+        veh.pendingDocReady = true
+        log("I", "Documents ready for vehicle: " .. tostring(invId))
+        if ui_message then
+          ui_message("Your documents are ready for pickup!", 5, "success")
+        end
+      end
+    end
+  end
+end
+
+---------------------------------------------------------------------------
 -- Heat & Police Systems (must be before onUpdate)
 ---------------------------------------------------------------------------
 
 -- Update heat decay for all stolen vehicles (called from onUpdate)
 local function updateVehicleHeat()
+  if not career_modules_inventory then return end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles then return end
+
   local cfg = config
-  local now = os.time()
+  local currentGameTime = getGameTimeSeconds()
   local decayPerHour = cfg.HEAT_DECAY_PER_HOUR or 10
   local minHeat = cfg.HEAT_MIN or 10
 
-  for invId, heat in pairs(vehicleHeat) do
-    -- Defensive check for corrupted save data
-    if type(heat) == "table" and type(heat.lastUpdate) == "number" and type(heat.level) == "number" then
-      local hoursPassed = (now - heat.lastUpdate) / 3600
-      if hoursPassed > 0 then
+  for invId, veh in pairs(vehicles) do
+    -- Only process stolen vehicles with heat
+    if veh.isStolen and veh.heatLevel and veh.heatLevel > 0 then
+      local lastUpdate = veh.heatLastUpdate or currentGameTime
+      local secondsPassed = currentGameTime - lastUpdate
+      local hoursPassed = secondsPassed / 3600
+
+      if hoursPassed > 0.01 then  -- Only update if meaningful time passed
         local decay = hoursPassed * decayPerHour
-        heat.level = math.max(minHeat, heat.level - decay)
-        heat.lastUpdate = now
+        veh.heatLevel = math.max(minHeat, veh.heatLevel - decay)
+        veh.heatLastUpdate = currentGameTime
       end
-    else
-      -- Remove invalid entry
-      vehicleHeat[invId] = nil
-      log("W", "Removed invalid heat entry for vehicle " .. tostring(invId))
     end
   end
 end
@@ -967,6 +1007,7 @@ local function getPlayerStolenVehicleInfo()
     inventoryId = inventoryId,
     hasDocuments = veh.hasDocuments or false,
     documentTier = veh.documentTier,
+    documentDetectChance = veh.documentDetectChance,
     heat = M.getVehicleHeat(inventoryId)
   }
 end
@@ -1001,20 +1042,25 @@ local function checkPoliceInspection(dtReal)
     local heat = stolenInfo.heat or 0
     chance = chance * (heat / 100)
   else
-    -- Documented: use tier detection chance
-    local tierCfg = nil
-    if stolenInfo.documentTier == "budget" then
-      tierCfg = cfg.DOC_TIER_BUDGET
-    elseif stolenInfo.documentTier == "standard" then
-      tierCfg = cfg.DOC_TIER_STANDARD
-    elseif stolenInfo.documentTier == "premium" then
-      tierCfg = cfg.DOC_TIER_PREMIUM
-    end
-
-    if tierCfg then
-      chance = chance * tierCfg.detectChance
+    -- Documented: use persisted detect chance from vehicle data
+    local detectChance = stolenInfo.documentDetectChance
+    if detectChance then
+      chance = chance * detectChance
     else
-      chance = chance * 0.1 -- Fallback for old documented vehicles
+      -- Fallback: read from config based on tier (for older documented vehicles)
+      local tierCfg = nil
+      if stolenInfo.documentTier == "budget" then
+        tierCfg = cfg.DOC_TIER_BUDGET
+      elseif stolenInfo.documentTier == "standard" then
+        tierCfg = cfg.DOC_TIER_STANDARD
+      elseif stolenInfo.documentTier == "premium" then
+        tierCfg = cfg.DOC_TIER_PREMIUM
+      end
+      if tierCfg then
+        chance = chance * tierCfg.detectChance
+      else
+        chance = chance * 0.1 -- Ultimate fallback
+      end
     end
   end
 
@@ -1059,6 +1105,9 @@ local function onUpdate(dtReal, dtSim, dtRaw)
 
   -- Update heat decay for stolen vehicles
   updateVehicleHeat()
+
+  -- Update document processing timers (game time based)
+  updateDocumentTimers(dtSim)
 
   -- Check for police inspection while driving stolen vehicles
   checkPoliceInspection(dtReal)
@@ -1134,19 +1183,36 @@ local function onPursuitAction(vehId, action, data)
     return
   end
 
+  -- Check if we're driving a stolen vehicle
+  local stolenInfo = getPlayerStolenVehicleInfo()
+
+  -- If vehicle is not stolen at all, car theft mod has no business here
+  if not stolenInfo then
+    return
+  end
+
+  -- If vehicle has documents, it's "legit" - no car theft consequences
+  if stolenInfo.hasDocuments and stolenInfo.documentDetectChance <= 0 then
+    log("I", "Pursuit action on documented vehicle - no car theft consequences")
+    return
+  end
+
+  -- From here on, we're dealing with a stolen undocumented vehicle
   if action == "arrest" then
     if confiscationInProgress then
       return  -- Already handling confiscation
     end
+
     if theftJob.state == STATE.REPORTED then
       -- Arrested during active theft
       completeFailure("Arrested by police!")
-    elseif inspectedVehicleInventoryId then
-      -- Arrested while just driving a stolen/undocumented vehicle
+    else
+      -- Confiscate stolen undocumented vehicle
       confiscationInProgress = true
-      confiscateVehicle(inspectedVehicleInventoryId, "Vehicle confiscated by police!")
+      confiscateVehicle(stolenInfo.inventoryId, "Vehicle confiscated by police!")
       confiscationInProgress = false
     end
+    inspectedVehicleInventoryId = nil  -- Clear tracking after arrest
   elseif action == "evade" then
     log("I", "Evaded police pursuit")
     inspectedVehicleInventoryId = nil  -- Clear tracking on successful evasion
@@ -1230,31 +1296,8 @@ local function loadCarTheftData()
       theftJob.state = STATE.IDLE
     end
 
-    -- Restore pending documents (with validation)
-    if saveData.pendingDocuments and type(saveData.pendingDocuments) == "table" then
-      pendingDocuments = {}
-      local validCount = 0
-      for invId, doc in pairs(saveData.pendingDocuments) do
-        if type(doc) == "table" and doc.tier and doc.readyTime then
-          pendingDocuments[invId] = doc
-          validCount = validCount + 1
-        end
-      end
-      log("I", "Restored pending documents for " .. validCount .. " vehicles")
-    end
-
-    -- Restore vehicle heat (with validation)
-    if saveData.vehicleHeat and type(saveData.vehicleHeat) == "table" then
-      vehicleHeat = {}
-      local validCount = 0
-      for invId, heat in pairs(saveData.vehicleHeat) do
-        if type(heat) == "table" and type(heat.level) == "number" and type(heat.lastUpdate) == "number" then
-          vehicleHeat[invId] = heat
-          validCount = validCount + 1
-        end
-      end
-      log("I", "Restored heat data for " .. validCount .. " vehicles")
-    end
+    -- Note: pendingDocuments and vehicleHeat are now stored on vehicle inventory
+    -- and are automatically persisted with the career save
   end
 end
 
@@ -1298,8 +1341,7 @@ local function onSaveCurrentSaveSlot(currentSavePath, oldSaveDate, freeroamSaveD
     -- Save theftJob state if active
     theftJob = nil,
     jobManagerData = nil,
-    pendingDocuments = pendingDocuments,
-    vehicleHeat = vehicleHeat,
+    -- Note: pendingDocuments and vehicleHeat are now stored on vehicle inventory
   }
 
   -- Save theft job if in progress
@@ -1488,92 +1530,151 @@ end
 ---------------------------------------------------------------------------
 
 -- Start document processing for a vehicle
-M.startDocumentProcessing = function(inventoryId, tier, readyTime)
-  local invIdStr = tostring(inventoryId)
-  pendingDocuments[invIdStr] = {
-    tier = tier,
-    orderTime = os.time(),
-    readyTime = readyTime
-  }
-  log("I", "Started document processing for " .. invIdStr .. " (tier: " .. tier .. ")")
+M.startDocumentProcessing = function(inventoryId, tier, requiredHours)
+  if not career_modules_inventory then return false end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles or not vehicles[inventoryId] then return false end
+
+  local veh = vehicles[inventoryId]
+  veh.pendingDocTier = tier
+  veh.pendingDocOrderTime = getGameTimeSeconds()
+  veh.pendingDocRequiredHours = requiredHours or 8
+  veh.pendingDocReady = false
+
+  log("I", "Started document processing for " .. tostring(inventoryId) .. " (tier: " .. tier .. ", " .. requiredHours .. " game hours)")
   return true
 end
 
 -- Check if documents are pending for a vehicle
 M.isDocumentsPending = function(inventoryId)
-  return pendingDocuments[tostring(inventoryId)] ~= nil
+  if not career_modules_inventory then return false end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles or not vehicles[inventoryId] then return false end
+
+  return vehicles[inventoryId].pendingDocTier ~= nil
 end
 
 -- Get document status for a vehicle
 M.getDocumentStatus = function(inventoryId)
-  local pending = pendingDocuments[tostring(inventoryId)]
-  if not pending or type(pending) ~= "table" then return nil end
+  if not career_modules_inventory then return nil end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles or not vehicles[inventoryId] then return nil end
 
-  -- Validate required fields
-  if not pending.readyTime or type(pending.readyTime) ~= "number" then
-    return nil
-  end
+  local veh = vehicles[inventoryId]
+  if not veh.pendingDocTier then return nil end
 
-  local now = os.time()
+  local currentGameTime = getGameTimeSeconds()
+  local orderGameTime = veh.pendingDocOrderTime or currentGameTime
+  local elapsedSeconds = currentGameTime - orderGameTime
+  local requiredSeconds = (veh.pendingDocRequiredHours or 8) * 3600
+  local remainingSeconds = math.max(0, requiredSeconds - elapsedSeconds)
+  local remainingHours = remainingSeconds / 3600
+
   return {
-    tier = pending.tier,
-    orderTime = pending.orderTime,
-    readyTime = pending.readyTime,
-    ready = now >= pending.readyTime,
-    remainingSeconds = math.max(0, pending.readyTime - now)
+    tier = veh.pendingDocTier,
+    requiredHours = veh.pendingDocRequiredHours or 8,
+    elapsedSeconds = elapsedSeconds,
+    ready = veh.pendingDocReady or (elapsedSeconds >= requiredSeconds),
+    remainingSeconds = remainingSeconds,
+    remainingHours = remainingHours
   }
 end
 
 -- Finalize documentation (when documents are ready)
 M.finalizeDocumentation = function(inventoryId)
-  local invIdStr = tostring(inventoryId)
-  local pending = pendingDocuments[invIdStr]
-  if not pending then return false end
-
-  -- Check if ready
-  if os.time() < pending.readyTime then
-    log("W", "Documents not ready yet for " .. invIdStr)
-    return false
-  end
-
-  -- Mark as documented with tier info
   if not career_modules_inventory then return false end
   local vehicles = career_modules_inventory.getVehicles()
   if not vehicles or not vehicles[inventoryId] then return false end
 
-  vehicles[inventoryId].hasDocuments = true
-  vehicles[inventoryId].documentedDate = os.time()
-  vehicles[inventoryId].documentTier = pending.tier
+  local veh = vehicles[inventoryId]
 
-  -- Clear pending
-  pendingDocuments[invIdStr] = nil
+  -- Check if ready (use status check which handles game time)
+  local status = M.getDocumentStatus(inventoryId)
+  if not status or not status.ready then
+    log("W", "Documents not ready yet for " .. tostring(inventoryId))
+    return false
+  end
+
+  local tier = veh.pendingDocTier
+
+  -- Get the detect chance for this tier
+  local detectChance = 0.1  -- Default fallback
+  local cfg = config
+  if tier == "budget" and cfg.DOC_TIER_BUDGET then
+    detectChance = cfg.DOC_TIER_BUDGET.detectChance or 0.40
+  elseif tier == "standard" and cfg.DOC_TIER_STANDARD then
+    detectChance = cfg.DOC_TIER_STANDARD.detectChance or 0.15
+  elseif tier == "premium" and cfg.DOC_TIER_PREMIUM then
+    detectChance = cfg.DOC_TIER_PREMIUM.detectChance or 0.02
+  end
+
+  -- Mark as documented with tier info and detect chance
+  veh.hasDocuments = true
+  veh.documentedDate = os.time()
+  veh.documentTier = tier
+  veh.documentDetectChance = detectChance
+
+  -- Clear pending document data
+  veh.pendingDocTier = nil
+  veh.pendingDocOrderTime = nil
+  veh.pendingDocRequiredHours = nil
+  veh.pendingDocReady = nil
 
   -- Clear heat for this vehicle
-  vehicleHeat[invIdStr] = nil
+  veh.heatLevel = nil
+  veh.heatLastUpdate = nil
 
-  log("I", "Finalized documentation for " .. invIdStr .. " (tier: " .. pending.tier .. ")")
+  log("I", "Finalized documentation for " .. tostring(inventoryId) .. " (tier: " .. tostring(tier) .. ")")
   return true
 end
 
 ---------------------------------------------------------------------------
--- Heat System
+-- Heat System (stored on vehicle inventory)
 ---------------------------------------------------------------------------
 
 -- Initialize heat for a newly stolen vehicle
 M.initVehicleHeat = function(inventoryId)
+  if not career_modules_inventory then return end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles or not vehicles[inventoryId] then return end
+
   local cfg = config
-  vehicleHeat[tostring(inventoryId)] = {
-    level = cfg.HEAT_INITIAL or 100,
-    lastUpdate = os.time()
-  }
+  local veh = vehicles[inventoryId]
+  veh.heatLevel = cfg.HEAT_INITIAL or 100
+  veh.heatLastUpdate = getGameTimeSeconds()
+  log("I", "Initialized heat for vehicle " .. tostring(inventoryId) .. ": " .. veh.heatLevel)
 end
 
 -- Get heat level for a vehicle
 M.getVehicleHeat = function(inventoryId)
-  local heat = vehicleHeat[tostring(inventoryId)]
-  if not heat or type(heat) ~= "table" then return 0 end
-  if type(heat.level) ~= "number" then return 0 end
-  return heat.level
+  if not career_modules_inventory then return 0 end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles or not vehicles[inventoryId] then return 0 end
+
+  local veh = vehicles[inventoryId]
+  return veh.heatLevel or 0
+end
+
+-- Set heat level for a vehicle
+M.setVehicleHeat = function(inventoryId, level)
+  if not career_modules_inventory then return end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles or not vehicles[inventoryId] then return end
+
+  local veh = vehicles[inventoryId]
+  veh.heatLevel = level
+  veh.heatLastUpdate = getGameTimeSeconds()
+end
+
+-- Clear heat for a vehicle (when documented or confiscated)
+M.clearVehicleHeat = function(inventoryId)
+  if not career_modules_inventory then return end
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles or not vehicles[inventoryId] then return end
+
+  local veh = vehicles[inventoryId]
+  veh.heatLevel = nil
+  veh.heatLastUpdate = nil
 end
 
 ---------------------------------------------------------------------------
@@ -1667,10 +1768,8 @@ function M.setCurrentVehicleHeat(level)
     return false
   end
 
-  vehicleHeat[tostring(inventoryId)] = {
-    level = level or 100,
-    lastUpdate = os.time()
-  }
+  -- Use the new vehicle inventory storage
+  M.setVehicleHeat(inventoryId, level or 100)
 
   ui_message("Heat set to " .. tostring(level), 3, "info")
   log("I", "Heat set to " .. tostring(level) .. " for vehicle " .. tostring(inventoryId))
@@ -1698,6 +1797,48 @@ function M.forcePoliceDetection()
   end
 
   return true
+end
+
+---------------------------------------------------------------------------
+-- UI Data Functions
+---------------------------------------------------------------------------
+
+-- Get all stolen vehicles with their status for the My Rides UI
+M.getVehicleStatusForUI = function()
+  if not career_career or not career_career.isActive() then
+    return {}
+  end
+
+  if not career_modules_inventory then
+    return {}
+  end
+
+  local vehicles = career_modules_inventory.getVehicles()
+  if not vehicles then return {} end
+
+  local result = {}
+
+  for inventoryId, veh in pairs(vehicles) do
+    if veh.isStolen then
+      local heat = M.getVehicleHeat(inventoryId) or 0
+      local docStatus = M.getDocumentStatus(inventoryId)
+
+      local entry = {
+        inventoryId = inventoryId,
+        name = veh.niceName or veh.model or "Unknown",
+        value = veh.value or 0,
+        heat = math.floor(heat),
+        hasDocuments = veh.hasDocuments or false,
+        documentTier = veh.documentTier,
+        detectChance = veh.documentDetectChance or 0,
+        pendingDoc = docStatus ~= nil and not docStatus.ready,
+        pendingHoursLeft = docStatus and docStatus.remainingHours or 0
+      }
+      table.insert(result, entry)
+    end
+  end
+
+  return result
 end
 
 ---------------------------------------------------------------------------

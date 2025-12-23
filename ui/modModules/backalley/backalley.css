@@ -362,6 +362,189 @@
 }
 
 /* =========================================================================
+   MY RIDES SITE - Cyan Theme
+   ========================================================================= */
+
+.myrides-site .site-header {
+  background: linear-gradient(135deg, rgba(0, 100, 130, 0.8), rgba(0, 60, 80, 0.9));
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 100, 130, 0.4);
+}
+
+.myrides-site .site-title {
+  color: #22d3ee;
+}
+
+.myrides-site .site-tagline {
+  color: #67e8f9;
+}
+
+.vehicle-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vehicle-status-card {
+  background: rgba(30, 30, 35, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 16px;
+  transition: all 0.3s ease;
+}
+
+.vehicle-status-card:hover {
+  background: rgba(40, 40, 50, 0.95);
+  border-color: rgba(34, 211, 238, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.vehicle-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vehicle-card-name {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.vehicle-card-value {
+  color: #4ade80;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  margin: 10px 0;
+  gap: 12px;
+}
+
+.status-label {
+  width: 120px;
+  color: #888;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.status-value {
+  font-weight: 500;
+}
+
+/* Heat Meter */
+.heat-meter-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.heat-meter {
+  flex: 1;
+  max-width: 200px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.heat-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+  border-radius: 6px;
+}
+
+.heat-low {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+.heat-medium {
+  background: linear-gradient(90deg, #eab308, #fbbf24);
+}
+
+.heat-high {
+  background: linear-gradient(90deg, #f97316, #fb923c);
+}
+
+.heat-critical {
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+.heat-value {
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-width: 40px;
+}
+
+.heat-value.heat-low { color: #4ade80; }
+.heat-value.heat-medium { color: #fbbf24; }
+.heat-value.heat-high { color: #fb923c; }
+.heat-value.heat-critical { color: #ef4444; }
+
+/* Documentation Status */
+.doc-complete {
+  color: #4ade80;
+}
+
+.doc-pending {
+  color: #fbbf24;
+}
+
+.doc-none {
+  color: #f87171;
+}
+
+.risk-value {
+  color: #fb923c;
+}
+
+/* Vehicle Card Actions */
+.vehicle-card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-docs {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+}
+
+.btn-docs:hover {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.btn-sell {
+  background: linear-gradient(135deg, #b45309, #92400e);
+  color: white;
+}
+
+.btn-sell:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+.link-text {
+  color: #22d3ee;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-text:hover {
+  color: #67e8f9;
+}
+
+/* =========================================================================
    BLACK MARKET SITE - Orange/Gold Theme
    ========================================================================= */
 

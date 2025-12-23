@@ -54,7 +54,7 @@ M.MAX_COMPLETED_JOB_IDS = 50
 
 -- Values and fees
 M.MIN_VEHICLE_VALUE = 1000
-M.INTEL_FEE_MIN = 0.70
+M.INTEL_FEE_MIN = 0.45
 M.INTEL_FEE_MAX = 1.15
 M.JOB_EXPIRATION_TIME = 3600
 
@@ -130,10 +130,27 @@ M.BM_OFFER_EXPIRY_MAX = 7200
 -- Documentation
 ---------------------------------------------------------------------------
 
--- Tiers: {costMult = % of vehicle value, hours = processing time, detectChance = inspection fail rate}
-M.DOC_TIER_BUDGET = { costMult = 0.15, hours = 1, detectChance = 0.40 }
-M.DOC_TIER_STANDARD = { costMult = 0.20, hours = 4, detectChance = 0.15 }
-M.DOC_TIER_PREMIUM = { costMult = 0.30, hours = 12, detectChance = 0.02 }
+-- Budget Tier: Cheap but slow and risky
+M.DOC_TIER_BUDGET = {
+  costPercent = 0.15,     -- 15% of vehicle value
+  costMin = 5000,         -- Minimum $5,000
+  hours = 8,              -- 8 in-game hours processing time
+  detectChance = 0.40     -- 40% detection risk
+}
+
+-- Standard Tier: Better quality, higher cost, longer wait
+M.DOC_TIER_STANDARD = {
+  costPercent = 0.25,     -- 25% of vehicle value
+  costMin = 10000,        -- Minimum $10,000
+  hours = 16,             -- 16 in-game hours processing time
+  detectChance = 0.15     -- 15% detection risk
+}
+
+-- Premium Tier: Pay flat fee, instant documents
+M.DOC_TIER_PREMIUM = {
+  cost = 100000,          -- Flat $100k
+  detectChance = 0.02     -- 2% detection risk (nearly undetectable)
+}
 
 ---------------------------------------------------------------------------
 -- Heat System

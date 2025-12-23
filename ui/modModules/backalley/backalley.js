@@ -13,6 +13,7 @@ angular.module('beamng.stuff')
 
   $scope.bookmarks = [
     { name: 'Hot Wheels', site: 'hotwheels', url: 'hotwheels.bally', icon: 'fire' },
+    { name: 'My Rides', site: 'myrides', url: 'myrides.bally', icon: 'car' },
     { name: 'Black Market', site: 'blackmarket', url: 'blackmarket.bally', icon: 'cart' },
     { name: 'Legit Docs', site: 'legitdocs', url: 'legitdocs.bally', icon: 'file' }
   ];
@@ -28,6 +29,8 @@ angular.module('beamng.stuff')
   $scope.refreshCurrentSite = function() {
     if ($scope.currentSite === 'hotwheels') {
       $scope.loadHotWheelsData();
+    } else if ($scope.currentSite === 'myrides') {
+      $scope.loadMyRidesData();
     } else if ($scope.currentSite === 'blackmarket') {
       $scope.loadBlackMarketData();
     } else if ($scope.currentSite === 'legitdocs') {
@@ -117,6 +120,51 @@ angular.module('beamng.stuff')
   $scope.setGPS = function(job) {
     bngApi.engineLua('carTheft_jobManager.setJobGPS(' + job.id + ')');
     $scope.closeBrowser();
+  };
+
+  // =========================================================================
+  // My Rides Site (Vehicle Status)
+  // =========================================================================
+  $scope.myRidesData = {
+    vehicles: [],
+    loading: true
+  };
+
+  $scope.loadMyRidesData = function() {
+    $scope.myRidesData.loading = true;
+    bngApi.engineLua("carTheft_main.getVehicleStatusForUI()", function(result) {
+      $scope.$evalAsync(function() {
+        $scope.myRidesData.vehicles = result || [];
+        $scope.myRidesData.loading = false;
+      });
+    });
+    $scope.loadPlayerMoney();
+  };
+
+  // Get heat level class for styling (green/yellow/orange/red)
+  $scope.getHeatClass = function(heat) {
+    if (heat <= 25) return 'heat-low';      // Green - cool
+    if (heat <= 50) return 'heat-medium';   // Yellow - warm
+    if (heat <= 75) return 'heat-high';     // Orange - hot
+    return 'heat-critical';                  // Red - very hot
+  };
+
+  // Get documentation status display
+  $scope.getDocStatus = function(vehicle) {
+    if (vehicle.hasDocuments) {
+      return 'Documented (' + vehicle.documentTier + ')';
+    }
+    if (vehicle.pendingDoc) {
+      return 'Processing... (' + $scope.formatTime(vehicle.pendingHoursLeft) + ' left)';
+    }
+    return 'Undocumented';
+  };
+
+  // Get documentation status class
+  $scope.getDocStatusClass = function(vehicle) {
+    if (vehicle.hasDocuments) return 'doc-complete';
+    if (vehicle.pendingDoc) return 'doc-pending';
+    return 'doc-none';
   };
 
   // =========================================================================
@@ -281,10 +329,45 @@ angular.module('beamng.stuff')
       $scope.$evalAsync(function() {
         $scope.legitDocsData.vehicles = result || [];
         $scope.legitDocsData.loading = false;
+
+        // Check if any documents are pending - if so, start auto-refresh
+        var hasPending = false;
+        for (var i = 0; i < $scope.legitDocsData.vehicles.length; i++) {
+          if ($scope.legitDocsData.vehicles[i].pending && !$scope.legitDocsData.vehicles[i].ready) {
+            hasPending = true;
+            break;
+          }
+        }
+        if (hasPending && !$scope.legitDocsData.refreshInterval) {
+          $scope.startLegitDocsRefresh();
+        } else if (!hasPending && $scope.legitDocsData.refreshInterval) {
+          $scope.stopLegitDocsRefresh();
+        }
       });
     });
 
     $scope.loadPlayerMoney();
+  };
+
+  // Auto-refresh for pending documents (updates timer display)
+  $scope.startLegitDocsRefresh = function() {
+    if ($scope.legitDocsData.refreshInterval) return;
+    $scope.legitDocsData.refreshInterval = setInterval(function() {
+      if ($scope.currentSite === 'legitdocs') {
+        bngApi.engineLua("carTheft_documentation.getVehiclesForUI()", function(result) {
+          $scope.$evalAsync(function() {
+            $scope.legitDocsData.vehicles = result || [];
+          });
+        });
+      }
+    }, 5000); // Refresh every 5 seconds
+  };
+
+  $scope.stopLegitDocsRefresh = function() {
+    if ($scope.legitDocsData.refreshInterval) {
+      clearInterval($scope.legitDocsData.refreshInterval);
+      $scope.legitDocsData.refreshInterval = null;
+    }
   };
 
   $scope.getTierFee = function(vehicle, tierName) {
@@ -292,14 +375,25 @@ angular.module('beamng.stuff')
     return vehicle.fees[tierName] || 0;
   };
 
-  $scope.formatTime = function(seconds) {
-    if (!seconds || seconds <= 0) return 'Ready!';
-    var hours = Math.floor(seconds / 3600);
-    var mins = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return hours + 'h ' + mins + 'm';
+  $scope.formatTime = function(hours) {
+    if (!hours || hours <= 0) return 'Ready!';
+    if (hours >= 1) {
+      var h = Math.floor(hours);
+      var m = Math.floor((hours - h) * 60);
+      if (m > 0) {
+        return h + 'h ' + m + 'm';
+      }
+      return h + 'h';
     }
+    var mins = Math.floor(hours * 60);
     return mins + 'm';
+  };
+
+  $scope.getTierTime = function(tierName) {
+    var tier = $scope.legitDocsData.tiers[tierName];
+    if (!tier) return '?';
+    if (tierName === 'premium') return 'Instant';
+    return tier.hours + ' game hours';
   };
 
   $scope.orderDocuments = function(vehicle, tierName) {

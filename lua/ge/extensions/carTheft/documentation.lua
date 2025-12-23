@@ -1,6 +1,6 @@
 -- documentation.lua
 -- LegitDocs service - Purchase fake documentation for stolen vehicles
--- Features: tiered pricing, processing time, quality-based detection risk
+-- Features: tiered pricing (budget/standard/premium), game-time based processing
 
 local M = {}
 
@@ -61,23 +61,24 @@ function M.getTierInfo()
   return {
     budget = {
       name = "Budget",
-      description = "Quick and cheap, but risky",
-      costMult = budget.costMult or 0.15,
-      hours = budget.hours or 1,
+      description = "Cheap but slow (" .. (budget.hours or 8) .. " game hours)",
+      costPercent = budget.costPercent or 0.15,
+      costMin = budget.costMin or 5000,
+      hours = budget.hours or 8,
       detectChance = budget.detectChance or 0.40
     },
     standard = {
       name = "Standard",
-      description = "Balanced quality and price",
-      costMult = standard.costMult or 0.20,
-      hours = standard.hours or 4,
+      description = "Better quality (" .. (standard.hours or 16) .. " game hours)",
+      costPercent = standard.costPercent or 0.25,
+      costMin = standard.costMin or 10000,
+      hours = standard.hours or 16,
       detectChance = standard.detectChance or 0.15
     },
     premium = {
       name = "Premium",
-      description = "Top quality, nearly undetectable",
-      costMult = premium.costMult or 0.30,
-      hours = premium.hours or 12,
+      description = "Instant, nearly undetectable ($" .. (premium.cost or 100000) .. ")",
+      cost = premium.cost or 100000,
       detectChance = premium.detectChance or 0.02
     }
   }
@@ -87,26 +88,44 @@ end
 -- Fee Calculation
 ---------------------------------------------------------------------------
 
--- Calculate documentation fee for a vehicle and tier
-function M.getDocumentFee(inventoryId, tierName)
-  local tierCfg = getTierConfig(tierName)
-  if not tierCfg then
-    return nil
-  end
-
+-- Get vehicle value from inventory
+local function getVehicleValue(inventoryId)
   local main = getCarTheftMain()
-  if not main or not main.getStolenVehicles then return nil end
+  if not main or not main.getStolenVehicles then return 10000 end
 
-  -- Get vehicle value (wrapped in pcall for safety)
   local success, vehicles = pcall(function() return main.getStolenVehicles() end)
-  if not success or not vehicles then return nil end
+  if not success or not vehicles then return 10000 end
 
   for _, veh in ipairs(vehicles) do
     if veh and tostring(veh.inventoryId) == tostring(inventoryId) then
-      local value = veh.value or 10000
-      local costMult = tierCfg.costMult or 0.20
-      return math.floor(value * costMult)
+      return veh.value or 10000
     end
+  end
+  return 10000
+end
+
+-- Calculate documentation fee for a vehicle and tier
+function M.getDocumentFee(inventoryId, tierName)
+  local cfg = getConfig()
+  if not cfg then return nil end
+
+  local value = getVehicleValue(inventoryId)
+
+  if tierName == "budget" then
+    local tierCfg = cfg.DOC_TIER_BUDGET or {}
+    local costPercent = tierCfg.costPercent or 0.15
+    local costMin = tierCfg.costMin or 5000
+    return math.max(costMin, math.floor(value * costPercent))
+
+  elseif tierName == "standard" then
+    local tierCfg = cfg.DOC_TIER_STANDARD or {}
+    local costPercent = tierCfg.costPercent or 0.25
+    local costMin = tierCfg.costMin or 10000
+    return math.max(costMin, math.floor(value * costPercent))
+
+  elseif tierName == "premium" then
+    local tierCfg = cfg.DOC_TIER_PREMIUM or {}
+    return tierCfg.cost or 100000
   end
 
   return nil
@@ -132,30 +151,13 @@ end
 -- Document Ordering
 ---------------------------------------------------------------------------
 
--- Order documents for a vehicle (pay upfront, wait for processing)
+-- Order documents for a vehicle (behavior depends on tier)
 function M.orderDocuments(inventoryId, tierName)
   log("I", "Ordering " .. tierName .. " documents for vehicle: " .. tostring(inventoryId))
 
-  local tierCfg = getTierConfig(tierName)
-  if not tierCfg then
-    return false, "Invalid tier"
-  end
-
-  -- Check if player has enough money
-  if not career_modules_playerAttributes then
-    log("E", "Career system not available")
-    return false, "Career system not available"
-  end
-
-  local fee = M.getDocumentFee(inventoryId, tierName)
-  if not fee then
-    return false, "Could not calculate fee"
-  end
-
-  local playerMoney = career_modules_playerAttributes.getAttributeValue("money") or 0
-  if playerMoney < fee then
-    log("W", "Player cannot afford documents: " .. playerMoney .. " < " .. fee)
-    return false, "Not enough money ($" .. fee .. " required)"
+  local cfg = getConfig()
+  if not cfg then
+    return false, "Config not loaded"
   end
 
   -- Check if vehicle exists and is undocumented
@@ -175,42 +177,154 @@ function M.orderDocuments(inventoryId, tierName)
     return false, "Documents already being processed"
   end
 
-  -- Deduct money
-  if career_modules_payment and career_modules_payment.pay then
-    career_modules_payment.pay({
-      money = { amount = fee, canBeNegative = false }
-    }, {
-      label = "Document Processing Fee (" .. tierName .. ")",
-      tags = { "gameplay", "carTheft", "documentation" }
-    })
-  else
-    log("E", "Payment system not available")
-    return false, "Payment system error"
-  end
-
-  -- Calculate ready time (hours to seconds)
-  local processingSeconds = tierCfg.hours * 3600
-  local readyTime = os.time() + processingSeconds
-
-  -- Mark documents as pending
-  if main.startDocumentProcessing then
-    local success = main.startDocumentProcessing(inventoryId, tierName, readyTime)
-    if not success then
-      log("E", "Failed to start document processing")
-      return false, "Failed to process order"
+  -----------------------------------------------------------------
+  -- BUDGET TIER: Pay fee, wait for processing (game time)
+  -----------------------------------------------------------------
+  if tierName == "budget" then
+    local fee = M.getDocumentFee(inventoryId, "budget")
+    if not fee then
+      return false, "Could not calculate fee"
     end
-  else
-    log("E", "startDocumentProcessing not available")
-    return false, "System error"
+
+    -- Check money
+    if not career_modules_playerAttributes then
+      return false, "Career system not available"
+    end
+    local playerMoney = career_modules_playerAttributes.getAttributeValue("money") or 0
+    if playerMoney < fee then
+      return false, "Not enough money ($" .. fee .. " required)"
+    end
+
+    -- Deduct money
+    if career_modules_payment and career_modules_payment.pay then
+      career_modules_payment.pay({
+        money = { amount = fee, canBeNegative = false }
+      }, {
+        label = "Document Processing Fee (Budget)",
+        tags = { "gameplay", "carTheft", "documentation" }
+      })
+    else
+      return false, "Payment system error"
+    end
+
+    -- Start processing (game-time based)
+    local tierCfg = cfg.DOC_TIER_BUDGET or {}
+    local hours = tierCfg.hours or 8
+
+    if main.startDocumentProcessing then
+      local success = main.startDocumentProcessing(inventoryId, tierName, hours)
+      if not success then
+        return false, "Failed to process order"
+      end
+    else
+      return false, "System error"
+    end
+
+    log("I", "Budget documents ordered. Ready in " .. hours .. " game hours")
+    if ui_message then
+      ui_message("Documents ordered! Ready in " .. hours .. " game hour(s).", 5, "info")
+    end
+
+    return true, "Documents ordered successfully"
+
+  -----------------------------------------------------------------
+  -- STANDARD TIER: Pay higher fee, wait longer (game time)
+  -----------------------------------------------------------------
+  elseif tierName == "standard" then
+    local fee = M.getDocumentFee(inventoryId, "standard")
+    if not fee then
+      return false, "Could not calculate fee"
+    end
+
+    -- Check money
+    if not career_modules_playerAttributes then
+      return false, "Career system not available"
+    end
+    local playerMoney = career_modules_playerAttributes.getAttributeValue("money") or 0
+    if playerMoney < fee then
+      return false, "Not enough money ($" .. fee .. " required)"
+    end
+
+    -- Deduct money
+    if career_modules_payment and career_modules_payment.pay then
+      career_modules_payment.pay({
+        money = { amount = fee, canBeNegative = false }
+      }, {
+        label = "Document Processing Fee (Standard)",
+        tags = { "gameplay", "carTheft", "documentation" }
+      })
+    else
+      return false, "Payment system error"
+    end
+
+    -- Start processing (game-time based)
+    local tierCfg = cfg.DOC_TIER_STANDARD or {}
+    local hours = tierCfg.hours or 16
+
+    if main.startDocumentProcessing then
+      local success = main.startDocumentProcessing(inventoryId, tierName, hours)
+      if not success then
+        return false, "Failed to process order"
+      end
+    else
+      return false, "System error"
+    end
+
+    log("I", "Standard documents ordered. Ready in " .. hours .. " game hours")
+    if ui_message then
+      ui_message("Documents ordered! Ready in " .. hours .. " game hour(s).", 5, "info")
+    end
+
+    return true, "Documents ordered successfully"
+
+  -----------------------------------------------------------------
+  -- PREMIUM TIER: Pay flat fee, instant documents
+  -----------------------------------------------------------------
+  elseif tierName == "premium" then
+    local fee = M.getDocumentFee(inventoryId, "premium")
+    if not fee then
+      return false, "Could not calculate fee"
+    end
+
+    -- Check money
+    if not career_modules_playerAttributes then
+      return false, "Career system not available"
+    end
+    local playerMoney = career_modules_playerAttributes.getAttributeValue("money") or 0
+    if playerMoney < fee then
+      return false, "Not enough money ($" .. fee .. " required)"
+    end
+
+    -- Deduct money
+    if career_modules_payment and career_modules_payment.pay then
+      career_modules_payment.pay({
+        money = { amount = fee, canBeNegative = false }
+      }, {
+        label = "Premium Document Fee",
+        tags = { "gameplay", "carTheft", "documentation" }
+      })
+    else
+      return false, "Payment system error"
+    end
+
+    -- Instant documentation
+    if main.finalizeDocumentation then
+      -- First set pending then immediately finalize
+      main.startDocumentProcessing(inventoryId, tierName, 0)
+      main.finalizeDocumentation(inventoryId)
+
+      log("I", "Premium documents acquired instantly")
+      if ui_message then
+        ui_message("Premium documents acquired! Vehicle is now legal.", 5, "success")
+      end
+
+      return true, "Documents acquired"
+    else
+      return false, "System error"
+    end
   end
 
-  log("I", "Documents ordered. Ready in " .. tierCfg.hours .. " hours")
-
-  if ui_message then
-    ui_message("Documents ordered! Ready in " .. tierCfg.hours .. " hour(s).", 5, "info")
-  end
-
-  return true, "Documents ordered successfully"
+  return false, "Invalid tier"
 end
 
 ---------------------------------------------------------------------------
@@ -242,9 +356,8 @@ function M.collectDocuments(inventoryId)
   end
 
   if not status.ready then
-    local remaining = status.readyTime - os.time()
-    local hours = math.ceil(remaining / 3600)
-    return false, "Documents not ready yet (" .. hours .. " hour(s) remaining)"
+    local hours = math.ceil(status.remainingHours or 0)
+    return false, "Documents not ready yet (" .. hours .. " game hour(s) remaining)"
   end
 
   -- Finalize documentation
@@ -305,8 +418,7 @@ function M.getVehiclesForUI()
         pending = status ~= nil,
         ready = status and status.ready or false,
         tier = status and status.tier or nil,
-        readyTime = status and status.readyTime or nil,
-        remainingSeconds = status and status.readyTime and (status.readyTime - os.time()) or nil
+        remainingHours = status and status.remainingHours or nil
       }
       table.insert(result, entry)
     end
@@ -319,14 +431,9 @@ end
 -- Legacy API (backwards compatibility)
 ---------------------------------------------------------------------------
 
--- Old flat-fee API - now orders standard tier
+-- Old flat-fee API - now orders budget tier
 function M.purchaseDocuments(inventoryId)
-  return M.orderDocuments(inventoryId, "standard")
-end
-
-function M.getDocumentFee()
-  -- Return average fee for legacy code
-  return 5000
+  return M.orderDocuments(inventoryId, "budget")
 end
 
 function M.needsDocumentation(inventoryId)

@@ -19,17 +19,53 @@ end
 
 local original_changeInvVehInsurance = nil
 local original_listVehiclesForSale = nil
+local original_getInvVehRepairTime = nil
+local original_getVehInsuranceInfo = nil
 
 ---------------------------------------------------------------------------
 -- Helper: Check if vehicle is undocumented stolen
 ---------------------------------------------------------------------------
 
+-- RLS Career uses "overrides/" folder prefix, so modules are overrides_career_modules_*
+local function getInsuranceModule()
+  return overrides_career_modules_insurance_insurance or career_modules_insurance_insurance
+end
+
+local function getInventoryModule()
+  return overrides_career_modules_inventory or career_modules_inventory
+end
+
+local function getMarketplaceModule()
+  return overrides_career_modules_marketplace or career_modules_marketplace
+end
+
+local function getInsuranceMainModule()
+  return overrides_career_modules_insurance or career_modules_insurance
+end
+
 local function isUndocumentedStolen(invVehId)
-  if not career_modules_inventory then return false end
-  local vehicles = career_modules_inventory.getVehicles()
+  local inventory = getInventoryModule()
+  if not inventory then return false end
+  local vehicles = inventory.getVehicles()
   if not vehicles then return false end
   local veh = vehicles[invVehId]
   if veh and veh.isStolen and not veh.hasDocuments then
+    return true
+  end
+  return false
+end
+
+-- Check if a vehicle has any insurance (for repair time check)
+local function vehicleHasInsurance(invVehId)
+  local insurance = getInsuranceModule()
+  if not insurance then return false end
+  if not insurance.getVehInsuranceInfo then return false end
+
+  local success, info = pcall(function()
+    return insurance.getVehInsuranceInfo(invVehId)
+  end)
+
+  if success and info and info.isInsured then
     return true
   end
   return false
@@ -90,24 +126,100 @@ local function wrapped_listVehiclesForSale(vehicles)
 end
 
 ---------------------------------------------------------------------------
+-- Insurance Info Override (fixes crash on uninsured vehicles)
+---------------------------------------------------------------------------
+
+local function wrapped_getVehInsuranceInfo(invVehId)
+  -- Try original function with pcall to catch nil comparison errors
+  if original_getVehInsuranceInfo then
+    local success, result = pcall(function()
+      return original_getVehInsuranceInfo(invVehId)
+    end)
+    if success then
+      return result
+    else
+      -- Original function crashed - return safe default for uninsured vehicle
+      log("W", "getVehInsuranceInfo failed for vehicle " .. tostring(invVehId) .. ", returning uninsured default")
+      return {
+        isInsured = false,
+        currentPolicy = nil,
+        policies = {}
+      }
+    end
+  end
+
+  -- No original function, return uninsured default
+  return {
+    isInsured = false,
+    currentPolicy = nil,
+    policies = {}
+  }
+end
+
+---------------------------------------------------------------------------
+-- Insurance Repair Time Override (fixes crash on uninsured vehicles)
+---------------------------------------------------------------------------
+
+local function wrapped_getInvVehRepairTime(invVehId)
+  -- Check if the vehicle has insurance before calling original
+  -- If no insurance, return 0 to avoid nil comparison crash
+  if not vehicleHasInsurance(invVehId) then
+    return 0
+  end
+
+  -- Call original function for insured vehicles
+  if original_getInvVehRepairTime then
+    local success, result = pcall(function()
+      return original_getInvVehRepairTime(invVehId)
+    end)
+    if success then
+      return result
+    else
+      log("W", "getInvVehRepairTime failed for vehicle " .. tostring(invVehId) .. ", returning 0")
+      return 0
+    end
+  end
+
+  return 0
+end
+
+---------------------------------------------------------------------------
 -- Apply Overrides
 ---------------------------------------------------------------------------
 
 local function applyOverrides()
   if overridesApplied then return end
 
+  local insuranceMain = getInsuranceMainModule()
+  local marketplace = getMarketplaceModule()
+  local insurance = getInsuranceModule()
+
   -- Override insurance function
-  if career_modules_insurance and career_modules_insurance.changeInvVehInsurance then
-    original_changeInvVehInsurance = career_modules_insurance.changeInvVehInsurance
-    career_modules_insurance.changeInvVehInsurance = wrapped_changeInvVehInsurance
+  if insuranceMain and insuranceMain.changeInvVehInsurance then
+    original_changeInvVehInsurance = insuranceMain.changeInvVehInsurance
+    insuranceMain.changeInvVehInsurance = wrapped_changeInvVehInsurance
     log("I", "Wrapped insurance.changeInvVehInsurance")
   end
 
   -- Override marketplace function
-  if career_modules_marketplace and career_modules_marketplace.listVehiclesForSale then
-    original_listVehiclesForSale = career_modules_marketplace.listVehiclesForSale
-    career_modules_marketplace.listVehiclesForSale = wrapped_listVehiclesForSale
+  if marketplace and marketplace.listVehiclesForSale then
+    original_listVehiclesForSale = marketplace.listVehiclesForSale
+    marketplace.listVehiclesForSale = wrapped_listVehiclesForSale
     log("I", "Wrapped marketplace.listVehiclesForSale")
+  end
+
+  -- Override insurance info function (fixes crash on uninsured stolen vehicles)
+  if insurance and insurance.getVehInsuranceInfo then
+    original_getVehInsuranceInfo = insurance.getVehInsuranceInfo
+    insurance.getVehInsuranceInfo = wrapped_getVehInsuranceInfo
+    log("I", "Wrapped insurance.getVehInsuranceInfo")
+  end
+
+  -- Override insurance repair time function (fixes crash on uninsured stolen vehicles)
+  if insurance and insurance.getInvVehRepairTime then
+    original_getInvVehRepairTime = insurance.getInvVehRepairTime
+    insurance.getInvVehRepairTime = wrapped_getInvVehRepairTime
+    log("I", "Wrapped insurance.getInvVehRepairTime")
   end
 
   overridesApplied = true
@@ -131,7 +243,10 @@ end
 -- Also try on extension loaded in case career is already active
 local function onUpdate(dtReal, dtSim, dtRaw)
   if not overridesApplied then
-    if career_modules_insurance and career_modules_marketplace then
+    local insurance = getInsuranceModule()
+    local marketplace = getMarketplaceModule()
+    local insuranceMain = getInsuranceMainModule()
+    if insurance and marketplace and insuranceMain then
       applyOverrides()
     end
   end
