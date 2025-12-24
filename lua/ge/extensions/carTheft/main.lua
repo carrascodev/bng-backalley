@@ -1183,31 +1183,34 @@ local function onPursuitAction(vehId, action, data)
     return
   end
 
-  -- Check if we're driving a stolen vehicle
+  -- Check if we're driving a stolen vehicle (from inventory)
   local stolenInfo = getPlayerStolenVehicleInfo()
 
-  -- If vehicle is not stolen at all, car theft mod has no business here
-  if not stolenInfo then
+  -- Check if we're in an active theft mission (vehicle not yet in inventory)
+  local inActiveTheft = theftJob.state == STATE.STEALING or theftJob.state == STATE.HOT or theftJob.state == STATE.REPORTED
+
+  -- If vehicle is not stolen and not in an active theft, car theft mod has no business here
+  if not stolenInfo and not inActiveTheft then
     return
   end
 
-  -- If vehicle has documents, it's "legit" - no car theft consequences
-  if stolenInfo.hasDocuments and stolenInfo.documentDetectChance <= 0 then
+  -- If vehicle has documents with 0 detect chance, it's "legit" - no car theft consequences
+  if stolenInfo and stolenInfo.hasDocuments and stolenInfo.documentDetectChance <= 0 then
     log("I", "Pursuit action on documented vehicle - no car theft consequences")
     return
   end
 
-  -- From here on, we're dealing with a stolen undocumented vehicle
+  -- From here on, we're dealing with either an active theft or a stolen undocumented vehicle
   if action == "arrest" then
     if confiscationInProgress then
       return  -- Already handling confiscation
     end
 
-    if theftJob.state == STATE.REPORTED then
-      -- Arrested during active theft
+    if inActiveTheft then
+      -- Arrested during active theft (STEALING, HOT, or REPORTED states)
       completeFailure("Arrested by police!")
-    else
-      -- Confiscate stolen undocumented vehicle
+    elseif stolenInfo then
+      -- Confiscate stolen undocumented vehicle from inventory
       confiscationInProgress = true
       confiscateVehicle(stolenInfo.inventoryId, "Vehicle confiscated by police!")
       confiscationInProgress = false

@@ -1,0 +1,12 @@
+{
+  "name": "backalley-mod-tests",
+  "version": "1.0.0",
+  "description": "Unit tests and UI preview for BackAlley car theft mod",
+  "scripts": {
+    "serve": "npx http-server .. -p 8080 -o ui-preview.html",
+    "test": "echo 'Run Lua tests with: lua run_tests.lua'"
+  },
+  "keywords": ["beamng", "mod", "testing"],
+  "author": "",
+  "license": "MIT"
+}

@@ -48,7 +48,7 @@
         <div class="website hotwheels-site" ng-if="currentSite === 'hotwheels'">
             <div class="site-header">
                 <h1 class="site-title">&#128293; Hot Wheels</h1>
-                <p class="site-tagline">Premium Vehicle Acquisition Services</p>
+                <p class="site-tagline">Premium Vehicle Intel Services</p>
             </div>
 
             <div class="site-content">
@@ -120,7 +120,7 @@
         <div class="website myrides-site" ng-if="currentSite === 'myrides'">
             <div class="site-header">
                 <h1 class="site-title">&#128663; My Rides</h1>
-                <p class="site-tagline">Your Stolen Vehicle Fleet Status</p>
+                <p class="site-tagline">Back Alley Vehicle Fleet Status</p>
             </div>
 
             <div class="site-content">
@@ -185,7 +185,7 @@
         <!-- ================================================================= -->
         <div class="website blackmarket-site" ng-if="currentSite === 'blackmarket'">
             <div class="site-header">
-                <h1 class="site-title">&#128176; Black Market</h1>
+                <h1 class="site-title">&#128176; Alley Bazar</h1>
                 <p class="site-tagline">No Papers. No Questions. No Guarantees.</p>
             </div>
 
@@ -392,7 +392,7 @@
                         <!-- Pending: Show status -->
                         <div ng-if="vehicle.pending" class="pending-status">
                             <div class="pending-info">
-                                <span class="pending-tier" ng-class="getTierClass(vehicle.tier)">{{vehicle.tier | uppercase}} docs</span>
+                                <span class="pending-tier" ng-class="getDocTierClass(vehicle.tier)">{{vehicle.tier | uppercase}} docs</span>
                                 <span class="pending-time" ng-if="!vehicle.ready">{{formatTime(vehicle.remainingHours)}} remaining</span>
                                 <span class="pending-ready" ng-if="vehicle.ready">&#10004; READY!</span>
                             </div>

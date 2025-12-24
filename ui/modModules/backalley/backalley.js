@@ -427,7 +427,7 @@ angular.module('beamng.stuff')
     });
   };
 
-  $scope.getTierClass = function(tierName) {
+  $scope.getDocTierClass = function(tierName) {
     if (tierName === 'budget') return 'tier-budget';
     if (tierName === 'standard') return 'tier-standard';
     if (tierName === 'premium') return 'tier-premium';

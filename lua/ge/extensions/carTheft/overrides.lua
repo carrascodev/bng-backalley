@@ -18,9 +18,11 @@ end
 ---------------------------------------------------------------------------
 
 local original_changeInvVehInsurance = nil
-local original_listVehiclesForSale = nil
+local original_listVehicles = nil
 local original_getInvVehRepairTime = nil
 local original_getVehInsuranceInfo = nil
+local original_sellVehicle = nil
+local original_sellVehicleFromInventory = nil
 
 ---------------------------------------------------------------------------
 -- Helper: Check if vehicle is undocumented stolen
@@ -98,7 +100,7 @@ end
 -- Marketplace Override
 ---------------------------------------------------------------------------
 
-local function wrapped_listVehiclesForSale(vehicles)
+local function wrapped_listVehicles(vehicles)
   -- Filter out undocumented stolen vehicles
   local filteredVehicles = {}
   local blocked = false
@@ -120,8 +122,49 @@ local function wrapped_listVehiclesForSale(vehicles)
   end
 
   -- Call original with filtered list
-  if original_listVehiclesForSale and #filteredVehicles > 0 then
-    return original_listVehiclesForSale(filteredVehicles)
+  if original_listVehicles and #filteredVehicles > 0 then
+    return original_listVehicles(filteredVehicles)
+  end
+end
+
+---------------------------------------------------------------------------
+-- Sell Vehicle Override (blocks direct selling of undocumented stolen)
+---------------------------------------------------------------------------
+
+local function wrapped_sellVehicle(inventoryId, price)
+  -- Block undocumented stolen vehicles from being sold
+  if isUndocumentedStolen(inventoryId) then
+    guihooks.trigger("toastrMsg", {
+      type = "error",
+      title = "Cannot Sell Vehicle",
+      msg = "This vehicle lacks proper documentation. Visit LegitDocs on BackAlley to acquire documents first."
+    })
+    log("I", "Blocked sale of undocumented stolen vehicle: " .. tostring(inventoryId))
+    return false
+  end
+
+  -- Call original function
+  if original_sellVehicle then
+    return original_sellVehicle(inventoryId, price)
+  end
+  return false
+end
+
+local function wrapped_sellVehicleFromInventory(inventoryId)
+  -- Block undocumented stolen vehicles from being sold
+  if isUndocumentedStolen(inventoryId) then
+    guihooks.trigger("toastrMsg", {
+      type = "error",
+      title = "Cannot Sell Vehicle",
+      msg = "This vehicle lacks proper documentation. Visit LegitDocs on BackAlley to acquire documents first."
+    })
+    log("I", "Blocked inventory sale of undocumented stolen vehicle: " .. tostring(inventoryId))
+    return
+  end
+
+  -- Call original function
+  if original_sellVehicleFromInventory then
+    return original_sellVehicleFromInventory(inventoryId)
   end
 end
 
@@ -202,10 +245,25 @@ local function applyOverrides()
   end
 
   -- Override marketplace function
-  if marketplace and marketplace.listVehiclesForSale then
-    original_listVehiclesForSale = marketplace.listVehiclesForSale
-    marketplace.listVehiclesForSale = wrapped_listVehiclesForSale
-    log("I", "Wrapped marketplace.listVehiclesForSale")
+  if marketplace and marketplace.listVehicles then
+    original_listVehicles = marketplace.listVehicles
+    marketplace.listVehicles = wrapped_listVehicles
+    log("I", "Wrapped marketplace.listVehicles")
+  end
+
+  -- Override sell vehicle functions (blocks selling undocumented stolen vehicles)
+  local inventory = getInventoryModule()
+  if inventory then
+    if inventory.sellVehicle then
+      original_sellVehicle = inventory.sellVehicle
+      inventory.sellVehicle = wrapped_sellVehicle
+      log("I", "Wrapped inventory.sellVehicle")
+    end
+    if inventory.sellVehicleFromInventory then
+      original_sellVehicleFromInventory = inventory.sellVehicleFromInventory
+      inventory.sellVehicleFromInventory = wrapped_sellVehicleFromInventory
+      log("I", "Wrapped inventory.sellVehicleFromInventory")
+    end
   end
 
   -- Override insurance info function (fixes crash on uninsured stolen vehicles)
@@ -246,7 +304,8 @@ local function onUpdate(dtReal, dtSim, dtRaw)
     local insurance = getInsuranceModule()
     local marketplace = getMarketplaceModule()
     local insuranceMain = getInsuranceMainModule()
-    if insurance and marketplace and insuranceMain then
+    local inventory = getInventoryModule()
+    if insurance and marketplace and insuranceMain and inventory then
       applyOverrides()
     end
   end

@@ -468,7 +468,7 @@
 }
 
 .heat-medium {
-  background: linear-gradient(90deg, #eab308, #fbbf24);
+  background: linear-gradient(90deg, #eab308, #f59e0b);
 }
 
 .heat-high {
@@ -485,10 +485,10 @@
   min-width: 40px;
 }
 
-.heat-value.heat-low { color: #4ade80; }
-.heat-value.heat-medium { color: #fbbf24; }
-.heat-value.heat-high { color: #fb923c; }
-.heat-value.heat-critical { color: #ef4444; }
+.heat-value.heat-low { color: #4ade80; background: transparent;}
+.heat-value.heat-medium {color: #f5ce67;background: transparent;}
+.heat-value.heat-high { color: #fb923c; background: transparent;}
+.heat-value.heat-critical { color: #ef4444; background: transparent;}
 
 /* Documentation Status */
 .doc-complete {
@@ -1127,8 +1127,10 @@
 
 .price-input-row {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 10px;
+  align-items: stretch;
+  align-content: space-around;
+  flex-direction: column;
 }
 
 .price-input {
