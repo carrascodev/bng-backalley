@@ -1,6 +1,7 @@
 {
-  "name": "BackAlley",
-  "author": "HenSea",
-  "version": "0.1.0",
-  "description": "Steal cars from traffic and deliver them to your garage before police catch you. Requires RLS Career Overhaul."
+    "tag_line": "Steal cars, forge documents, sell on the black market!",
+    "filename": "car_theft_career.zip",
+    "title": "BackAlley - Car Theft Career Alpha",
+    "version_string": "Alpha 0.1.0",
+    "author": "HenSea"
 }

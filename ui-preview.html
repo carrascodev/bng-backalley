@@ -4,206 +4,51 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BackAlley UI Preview</title>
-
-  <!-- AngularJS -->
   <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-router/1.0.30/angular-ui-router.min.js"></script>
-
-  <!-- Original CSS -->
   <link rel="stylesheet" href="ui/modModules/backalley/backalley.css">
-
   <style>
-    /* Preview container styling */
-    body {
-      margin: 0;
-      padding: 0;
-      background: #111;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    body { margin: 0; padding: 0; background: #111; font-family: 'Segoe UI', sans-serif; }
+    .preview-bar {
+      background: #1a1a2e; color: #fff; padding: 8px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid #4a4a6a; position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
     }
-
-    .preview-header {
-      background: #1a1a2e;
-      color: #fff;
-      padding: 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 2px solid #4a4a6a;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 9999;
-    }
-
-    .preview-header h1 {
-      margin: 0;
-      font-size: 18px;
-      color: #00ff00;
-    }
-
-    .preview-controls {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .preview-controls button {
-      padding: 6px 12px;
-      background: #333;
-      color: #fff;
-      border: 1px solid #555;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-    }
-
-    .preview-controls button:hover {
-      background: #444;
-    }
-
-    .preview-controls .money-display {
-      background: #1a3a1a;
-      color: #4ade80;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-weight: bold;
-    }
-
-    .preview-content {
-      margin-top: 50px;
-    }
-
-    .debug-panel {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0, 0, 0, 0.9);
-      color: #0f0;
-      font-family: monospace;
-      font-size: 11px;
-      max-height: 150px;
-      overflow-y: auto;
-      padding: 10px;
-      border-top: 1px solid #333;
-      display: none;
-      z-index: 9999;
-    }
-
-    .debug-panel.visible {
-      display: block;
-    }
-
-    .debug-panel .log-entry {
-      margin: 2px 0;
-      padding: 2px 4px;
-    }
-
-    .debug-panel .log-entry:nth-child(odd) {
-      background: rgba(255, 255, 255, 0.05);
-    }
+    .preview-bar h1 { margin: 0px; font-size: 16px; color: #0f0; }
+    .preview-bar button { padding: 5px 10px; background: #333; color: #fff; border: 1px solid #555; border-radius: 3px; cursor: pointer; margin-left: 8px; }
+    .preview-bar button:hover { background: #444; }
+    .preview-bar .money { background: #1a3a1a; color: #4ade80; padding: 5px 10px; border-radius: 3px; font-weight: bold; }
+    .preview-wrap { margin-top: 45px; }
   </style>
 </head>
 <body>
-  <!-- Preview Header -->
-  <div class="preview-header">
-    <h1>BackAlley UI Preview (Standalone)</h1>
-    <div class="preview-controls">
-      <span class="money-display" id="moneyDisplay">$75,000</span>
+  <div class="preview-bar">
+    <h1>BackAlley Preview</h1>
+    <div>
+      <span class="money" id="money">$75,000</span>
       <button onclick="addMoney(10000)">+$10k</button>
       <button onclick="addMoney(-10000)">-$10k</button>
-      <button onclick="toggleDebug()">Toggle Debug</button>
-      <button onclick="resetMockData()">Reset Data</button>
+      <button onclick="location.reload()">Reload</button>
     </div>
   </div>
 
-  <!-- Angular App Container - loads the actual backalley.html -->
-  <div class="preview-content" ng-app="backalleyPreview">
-    <div ng-include="'ui/modModules/backalley/backalley.html'"></div>
+  <div class="preview-wrap" ng-app="backalleyPreview" ng-controller="BackAlleyBrowserController">
+    <ng-include src="'ui/modModules/backalley/backalley.html'"></ng-include>
   </div>
 
-  <!-- Debug Panel -->
-  <div id="debugPanel" class="debug-panel"></div>
-
-  <!-- Load mock API before controller -->
   <script src="test/mock-beamng-api.js"></script>
-
-  <!-- Angular App Setup -->
   <script>
-    // Create the modules that BeamNG would normally provide
     angular.module('beamng.stuff', ['ui.router']);
-
-    // Create our preview app
-    angular.module('backalleyPreview', ['beamng.stuff', 'ui.router'])
-      .run(function($rootScope) {
-        // Make sure the controller gets instantiated when the template loads
-        $rootScope.$on('$includeContentLoaded', function() {
-          console.log('Template loaded successfully');
-        });
-      });
+    angular.module('backalleyPreview', ['beamng.stuff']);
   </script>
-
-  <!-- Load original controller -->
   <script src="ui/modModules/backalley/backalley.js"></script>
-
-  <!-- Preview Controls -->
   <script>
-    function updateMoneyDisplay() {
-      document.getElementById('moneyDisplay').textContent = '$' + MockData.playerMoney.toLocaleString();
+    function addMoney(amt) {
+      MockData.playerMoney += amt;
+      document.getElementById('money').textContent = '$' + MockData.playerMoney.toLocaleString();
+      var s = angular.element(document.querySelector('[ng-controller]')).scope();
+      if (s) s.$apply(function() { s.loadPlayerMoney(); });
     }
-
-    function addMoney(amount) {
-      MockData.playerMoney += amount;
-      updateMoneyDisplay();
-      // Trigger Angular digest
-      var scope = angular.element(document.querySelector('[ng-controller]')).scope();
-      if (scope) {
-        scope.$apply(function() {
-          scope.loadPlayerMoney();
-        });
-      }
-    }
-
-    function toggleDebug() {
-      var panel = document.getElementById('debugPanel');
-      panel.classList.toggle('visible');
-      if (panel.classList.contains('visible')) {
-        updateDebugPanel();
-      }
-    }
-
-    function updateDebugPanel() {
-      var panel = document.getElementById('debugPanel');
-      var html = '<strong>API Call Log:</strong><br>';
-      apiLog.slice(-20).forEach(function(entry) {
-        html += '<div class="log-entry">' + entry.time.split('T')[1].split('.')[0] + ' - ' + entry.call + '</div>';
-      });
-      panel.innerHTML = html;
-    }
-
-    function resetMockData() {
-      MockData.playerMoney = 75000;
-      MockData.cart = { items: [], total: 0 };
-      updateMoneyDisplay();
-      var scope = angular.element(document.querySelector('[ng-controller]')).scope();
-      if (scope) {
-        scope.$apply(function() {
-          scope.refreshCurrentSite();
-        });
-      }
-    }
-
-    // Update debug panel periodically if visible
-    setInterval(function() {
-      var panel = document.getElementById('debugPanel');
-      if (panel.classList.contains('visible')) {
-        updateDebugPanel();
-      }
-    }, 1000);
-
-    // Initial update
-    updateMoneyDisplay();
   </script>
 </body>
 </html>
