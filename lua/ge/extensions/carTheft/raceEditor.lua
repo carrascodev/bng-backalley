@@ -94,10 +94,11 @@ local function getPlayerRot()
   if playerVehId then
     local veh = be:getObjectByID(playerVehId)
     if veh then
-      local dir = veh:getDirectionVector()
-      -- Convert direction to quaternion (simplified)
-      local yaw = math.atan2(dir.y, dir.x)
-      return quatFromEuler(0, 0, yaw)
+      -- Get rotation directly from vehicle
+      local rot = veh:getRotation()
+      if rot then
+        return rot
+      end
     end
   end
   return quat(0, 0, 0, 1)
@@ -129,29 +130,11 @@ end
 local function createMarker(pos, color, width, name)
   if not pos then return nil end
 
-  -- Create a simple sphere marker using BeamNGTrigger
-  local markerName = "race_editor_marker_" .. name .. "_" .. os.time() .. math.random(1000)
+  -- For now, just log the marker position (visual markers can be added later)
+  log("D", "Marker: " .. name .. " at (" .. pos.x .. ", " .. pos.y .. ", " .. pos.z .. ") width: " .. width)
 
-  local trigger = createObject("BeamNGTrigger")
-  if not trigger then
-    log("W", "Failed to create marker trigger")
-    return nil
-  end
-
-  trigger:setName(markerName)
-  trigger:setPosition(pos)
-
-  -- Set scale based on width
-  local scale = vec3(width, width, width * 0.3)
-  trigger:setScale(scale)
-
-  -- Register the trigger
-  trigger:registerObject(markerName)
-
-  table.insert(editorState.markers, trigger)
-
-  log("D", "Created marker: " .. markerName .. " at " .. tostring(pos))
-  return trigger
+  -- TODO: Add visual marker creation using TSStatic or debug drawing
+  return nil
 end
 
 local function updateMarkers()
@@ -415,8 +398,9 @@ function M.save()
     return false
   end
 
-  local dirPath = "/mods/car_theft_career/races/" .. mapName
-  local filePath = dirPath .. "/races.json"
+  -- Save to mods folder for debugging (can be copied to settings later)
+  local dirPath = "/mods/car_theft_career/settings/races"
+  local filePath = dirPath .. "/" .. mapName .. ".json"
 
   -- Load existing races
   local existingRaces = {}
@@ -455,14 +439,16 @@ function M.save()
   -- Write file
   local success = writeFile(filePath, jsonContent)
   if not success then
-    -- Try alternative path (mod folder structure)
-    local altPath = "/car_theft_career/races/" .. mapName .. "/races.json"
+    -- Try alternative path (unpacked mod folder)
+    local altPath = "/car_theft_career/settings/races/" .. mapName .. ".json"
     success = writeFile(altPath, jsonContent)
 
     if not success then
       uiMessage("Error: Failed to save file. Check console for details.", 5, "error")
       log("E", "Failed to write to: " .. filePath .. " or " .. altPath)
       return false
+    else
+      filePath = altPath
     end
   end
 
@@ -527,8 +513,13 @@ function M.list()
     return
   end
 
-  local filePath = "/mods/car_theft_career/races/" .. mapName .. "/races.json"
+  -- Try settings folder first, then fallback to mods folder
+  local filePath = "/settings/races/" .. mapName .. ".json"
   local content = readFile(filePath)
+  if not content then
+    filePath = "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
+    content = readFile(filePath)
+  end
 
   if not content then
     uiMessage("No races found for " .. mapName, 3, "info")
@@ -569,8 +560,13 @@ function M.delete(raceName)
     return false
   end
 
-  local filePath = "/mods/car_theft_career/races/" .. mapName .. "/races.json"
+  -- Try settings folder first, then fallback to mods folder
+  local filePath = "/settings/races/" .. mapName .. ".json"
   local content = readFile(filePath)
+  if not content then
+    filePath = "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
+    content = readFile(filePath)
+  end
 
   if not content then
     uiMessage("No races file found", 5, "error")

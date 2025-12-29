@@ -44,6 +44,13 @@ local RACE_CONFIG = {
 -- AI racer vehicles
 local RACER_VEHICLES = {"vivace", "sunburst", "etk800", "scintilla", "200bx", "covet"}
 
+-- Racer name generation
+local RACER_FIRST_NAMES = {"Speed", "Fast", "Quick", "Nitro", "Turbo", "Drift", "Midnight", "Shadow", "Flash", "Thunder"}
+local RACER_LAST_NAMES = {"Mike", "Danny", "Rico", "Tony", "Vic", "Max", "Blade", "Ghost", "Snake", "Wolf"}
+
+-- Proximity threshold for challenge option (meters)
+local CHALLENGE_PROXIMITY = 15
+
 ---------------------------------------------------------------------------
 -- Race State Constants
 ---------------------------------------------------------------------------
@@ -105,12 +112,15 @@ local encounter = {
   state = ENCOUNTER_STATE.NONE,
   racerVehId = nil,
   racerModel = nil,
+  racerName = nil,
+  distanceToPlayer = math.huge,
   currentBet = 5000,
   isPinkSlip = false,
   finishPos = nil,
   finishTrigger = nil,
   countdownTime = 0,
-  raceStartTime = 0
+  raceStartTime = 0,
+  selectedRace = nil  -- Random race from available tracks
 }
 
 -- Statistics and lost vehicles
@@ -187,6 +197,37 @@ local function formatMoney(amount)
   return string.format("$%d", amount)
 end
 
+local function generateRacerName()
+  local firstName = RACER_FIRST_NAMES[math.random(1, #RACER_FIRST_NAMES)]
+  local lastName = RACER_LAST_NAMES[math.random(1, #RACER_LAST_NAMES)]
+  return firstName .. " " .. lastName
+end
+
+local function getVehicleDisplayName(model)
+  -- Map model names to display names
+  local displayNames = {
+    vivace = "Cherrier Vivace",
+    sunburst = "Hirochi Sunburst",
+    etk800 = "ETK 800",
+    scintilla = "Civetta Scintilla",
+    ["200bx"] = "Ibishu 200BX",
+    covet = "Ibishu Covet"
+  }
+  return displayNames[model] or model
+end
+
+local function getDistanceToEncounter()
+  if not encounter.racerVehId then return math.huge end
+
+  local playerPos = getPlayerPos()
+  if not playerPos then return math.huge end
+
+  local racerVeh = be:getObjectByID(encounter.racerVehId)
+  if not racerVeh then return math.huge end
+
+  return playerPos:distance(racerVeh:getPosition())
+end
+
 ---------------------------------------------------------------------------
 -- Race Data Loading
 ---------------------------------------------------------------------------
@@ -194,7 +235,8 @@ end
 local function getRacesFilePath()
   local mapName = getCurrentMapName()
   if not mapName then return nil end
-  return "/mods/car_theft_career/races/" .. mapName .. "/races.json"
+  -- Read from mod's settings folder (bundled with mod)
+  return "/settings/races/" .. mapName .. ".json"
 end
 
 local function loadRaces()
@@ -205,18 +247,37 @@ local function loadRaces()
     return
   end
 
-  local filePath = getRacesFilePath()
-  if not filePath then
-    log("W", "Could not determine races file path")
+  local mapName = getCurrentMapName()
+  if not mapName then
+    log("W", "Could not determine current map")
     loadedRaces = {}
     racesLoaded = true
     return
   end
 
-  log("I", "Loading races from: " .. filePath)
+  -- Try multiple paths in order of priority:
+  -- 1. Mod's settings folder (bundled with mod)
+  -- 2. Mods folder (debugging location)
+  -- 3. Unpacked mod folder
+  local paths = {
+    "/settings/races/" .. mapName .. ".json",
+    "/mods/car_theft_career/settings/races/" .. mapName .. ".json",
+    "/car_theft_career/settings/races/" .. mapName .. ".json"
+  }
 
-  local content = readFile(filePath)
+  local content = nil
+  local loadedPath = nil
+
+  for _, path in ipairs(paths) do
+    content = readFile(path)
+    if content then
+      loadedPath = path
+      break
+    end
+  end
+
   if content then
+    log("I", "Loading races from: " .. loadedPath)
     local success, data = pcall(jsonDecode, content)
     if success and data and data.races then
       loadedRaces = data.races
@@ -268,6 +329,80 @@ function M.getRacesForUI()
   table.sort(result, function(a, b) return a.difficulty < b.difficulty end)
 
   return result
+end
+
+---------------------------------------------------------------------------
+-- Random Race Selection
+---------------------------------------------------------------------------
+
+local function generateRandomRace()
+  if not racesLoaded then
+    loadRaces()
+  end
+
+  local availableRaces = {}
+  for id, race in pairs(loadedRaces) do
+    table.insert(availableRaces, race)
+  end
+
+  if #availableRaces == 0 then
+    return nil
+  end
+
+  return availableRaces[math.random(#availableRaces)]
+end
+
+function M.generateRandomRace()
+  return generateRandomRace()
+end
+
+---------------------------------------------------------------------------
+-- Navigation
+---------------------------------------------------------------------------
+
+local function setNavigationToStart(race)
+  if not race then return false end
+
+  local startPos = nil
+  if race.start and race.start.pos then
+    startPos = vec3(race.start.pos.x, race.start.pos.y, race.start.pos.z)
+  end
+
+  if not startPos then
+    log("W", "Race has no start position for navigation")
+    return false
+  end
+
+  -- Use BeamNG's ground markers / navigation system
+  if core_groundMarkers then
+    core_groundMarkers.setFocus(startPos)
+    log("I", "Navigation set to race start: " .. (race.name or race.id))
+    return true
+  else
+    log("W", "core_groundMarkers not available for navigation")
+    return false
+  end
+end
+
+function M.setNavigationToStart(raceId)
+  if not racesLoaded then
+    loadRaces()
+  end
+
+  local race = loadedRaces[raceId]
+  if not race then
+    return false, "Race not found"
+  end
+
+  return setNavigationToStart(race)
+end
+
+function M.clearNavigation()
+  if core_groundMarkers then
+    core_groundMarkers.setFocus(nil)
+    return true
+  end
+  return false
 end
 
 ---------------------------------------------------------------------------
@@ -427,10 +562,28 @@ function M.getActiveEncounter()
   return {
     state = encounter.state,
     racerVehId = encounter.racerVehId,
+    racerName = encounter.racerName,
+    racerModel = encounter.racerModel,
+    racerVehicle = getVehicleDisplayName(encounter.racerModel),
+    distanceToPlayer = encounter.distanceToPlayer,
     currentBet = encounter.currentBet,
     isPinkSlip = encounter.isPinkSlip,
-    allowPinkSlip = true
+    allowPinkSlip = true,
+    selectedRace = encounter.selectedRace
   }
+end
+
+-- Check if player is close enough to challenge
+function M.isNearAdversary()
+  if encounter.state ~= ENCOUNTER_STATE.SPAWNED then
+    return false
+  end
+  return encounter.distanceToPlayer <= CHALLENGE_PROXIMITY
+end
+
+-- Get just the proximity distance (for UI display)
+function M.getDistanceToAdversary()
+  return encounter.distanceToPlayer
 end
 
 function M.challengeEncounter(betAmount, isPinkSlip)
@@ -506,6 +659,9 @@ local function spawnStreetRacer()
   local playerPos = getPlayerPos()
   if not playerPos then return end
 
+  -- Select a random race from available tracks
+  local selectedRace = generateRandomRace()
+
   -- Find spawn position
   local distance = RACE_CONFIG.ENCOUNTER_SPAWN_RANGE_MIN +
                    math.random() * (RACE_CONFIG.ENCOUNTER_SPAWN_RANGE_MAX - RACE_CONFIG.ENCOUNTER_SPAWN_RANGE_MIN)
@@ -520,6 +676,9 @@ local function spawnStreetRacer()
   -- Select random racer vehicle
   local model = RACER_VEHICLES[math.random(1, #RACER_VEHICLES)]
 
+  -- Generate racer name
+  local racerName = generateRacerName()
+
   -- Spawn vehicle
   local spawnOptions = {
     pos = spawnPos,
@@ -531,16 +690,20 @@ local function spawnStreetRacer()
   if vehObj then
     encounter.racerVehId = vehObj:getID()
     encounter.racerModel = model
+    encounter.racerName = racerName
     encounter.state = ENCOUNTER_STATE.SPAWNED
     encounter.currentBet = 5000  -- Default bet
+    encounter.distanceToPlayer = distance
+    encounter.selectedRace = selectedRace
     lastEncounterTime = currentTime
 
-    log("I", "Street racer spawned: " .. model)
+    local vehicleDisplay = getVehicleDisplayName(model)
+    log("I", "Street racer spawned: " .. racerName .. " in " .. vehicleDisplay)
 
     guihooks.trigger('toastrMsg', {
       type = "info",
       title = "Street Racer Nearby",
-      msg = "A racer wants to challenge you! Use the radial menu."
+      msg = racerName .. " in a " .. vehicleDisplay .. " wants to race! Get closer to challenge."
     })
   end
 end
@@ -557,12 +720,15 @@ local function despawnEncounter()
     state = ENCOUNTER_STATE.NONE,
     racerVehId = nil,
     racerModel = nil,
+    racerName = nil,
+    distanceToPlayer = math.huge,
     currentBet = 5000,
     isPinkSlip = false,
     finishPos = nil,
     finishTrigger = nil,
     countdownTime = 0,
-    raceStartTime = 0
+    raceStartTime = 0,
+    selectedRace = nil
   }
 end
 
@@ -682,18 +848,26 @@ local function onUpdate(dtReal, dtSim, dtRaw)
     spawnStreetRacer()
   end
 
-  -- Check encounter despawn (player drove away)
+  -- Update encounter distance and check despawn
   if encounter.state == ENCOUNTER_STATE.SPAWNED then
     local playerPos = getPlayerPos()
     if playerPos and encounter.racerVehId then
       local racerVeh = be:getObjectByID(encounter.racerVehId)
       if racerVeh then
         local dist = playerPos:distance(racerVeh:getPosition())
+        encounter.distanceToPlayer = dist
+
+        -- Despawn if player drove too far away
         if dist > RACE_CONFIG.ENCOUNTER_DESPAWN_DISTANCE then
           log("I", "Encounter despawned - player too far")
           despawnEncounter()
         end
+      else
+        -- Vehicle no longer exists
+        encounter.distanceToPlayer = math.huge
       end
+    else
+      encounter.distanceToPlayer = math.huge
     end
   end
 

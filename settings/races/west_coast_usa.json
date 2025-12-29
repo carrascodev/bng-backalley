@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "map": "west_coast_usa",
+  "races": {},
+  "encounters": {
+    "spawnChance": 0.003,
+    "cooldownMinutes": 10,
+    "finishDistance": 2000
+  }
+}

@@ -865,16 +865,23 @@ local function onBeforeRadialOpened()
       local streetRacing = extensions.carTheft_streetRacing
       if not streetRacing then return end
       if not streetRacing.getActiveEncounter then return end
+      if not streetRacing.isNearAdversary then return end
 
       local encounter = streetRacing.getActiveEncounter()
       if not encounter then return end
 
-      -- Show challenge option with current bet
+      -- Only show challenge option when player is close to adversary (within 15m)
+      if not streetRacing.isNearAdversary() then return end
+
+      -- Build subtitle with adversary info
+      local subtitle = string.format("%s - %s", encounter.racerName or "Unknown", encounter.racerVehicle or "Unknown")
+
+      -- Show challenge option with adversary info
       table.insert(entries, {
         title = "Challenge Racer",
         icon = "radial_flag",
         priority = 45,
-        subtitle = string.format("Bet: $%d", encounter.currentBet or 5000),
+        subtitle = subtitle,
         onSelect = function()
           return {"nested", "carTheft_racing_bet"}
         end
