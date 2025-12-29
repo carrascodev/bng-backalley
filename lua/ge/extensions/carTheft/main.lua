@@ -72,7 +72,7 @@ local theftJob = {
 local spawnedStealableVehicles = {}
 
 -- Note: Document processing and heat are now stored on vehicle inventory data
--- See: veh.pendingDocTier, veh.pendingDocOrderTime, veh.pendingDocRequiredHours, veh.pendingDocReady
+-- See: veh.pendingDocTier, veh.pendingDocRemainingSeconds, veh.pendingDocLastUpdate, veh.pendingDocRequiredHours, veh.pendingDocReady
 -- See: veh.heatLevel, veh.heatLastUpdate
 
 -- Police inspection cooldown
@@ -890,17 +890,27 @@ local function updateDocumentTimers(dtSim)
   for invId, veh in pairs(vehicles) do
     -- Only process vehicles with pending documents
     if veh.isStolen and veh.pendingDocTier and not veh.pendingDocReady then
-      local orderGameTime = veh.pendingDocOrderTime or currentGameTime
-      local elapsedSeconds = currentGameTime - orderGameTime
-      local requiredSeconds = (veh.pendingDocRequiredHours or 8) * 3600
+      local lastUpdate = veh.pendingDocLastUpdate or currentGameTime
+      local gameTimeDelta = currentGameTime - lastUpdate
 
-      if elapsedSeconds >= requiredSeconds then
-        veh.pendingDocReady = true
-        log("I", "Documents ready for vehicle: " .. tostring(invId))
-        if ui_message then
-          ui_message("Your documents are ready for pickup!", 5, "success")
+      -- Only decrement if time moved forward (handles session reloads gracefully)
+      if gameTimeDelta > 0 then
+        local remaining = veh.pendingDocRemainingSeconds or 0
+        remaining = remaining - gameTimeDelta
+        veh.pendingDocRemainingSeconds = remaining
+
+        if remaining <= 0 then
+          veh.pendingDocReady = true
+          veh.pendingDocRemainingSeconds = 0
+          log("I", "Documents ready for vehicle: " .. tostring(invId))
+          if ui_message then
+            ui_message("Your documents are ready for pickup!", 5, "success")
+          end
         end
       end
+
+      -- Always update the last check time
+      veh.pendingDocLastUpdate = currentGameTime
     end
   end
 end
@@ -1540,8 +1550,9 @@ M.startDocumentProcessing = function(inventoryId, tier, requiredHours)
 
   local veh = vehicles[inventoryId]
   veh.pendingDocTier = tier
-  veh.pendingDocOrderTime = getGameTimeSeconds()
   veh.pendingDocRequiredHours = requiredHours or 8
+  veh.pendingDocRemainingSeconds = (requiredHours or 8) * 3600  -- Countdown timer
+  veh.pendingDocLastUpdate = getGameTimeSeconds()  -- Track last update time for time advancement
   veh.pendingDocReady = false
 
   log("I", "Started document processing for " .. tostring(inventoryId) .. " (tier: " .. tier .. ", " .. requiredHours .. " game hours)")
@@ -1566,18 +1577,16 @@ M.getDocumentStatus = function(inventoryId)
   local veh = vehicles[inventoryId]
   if not veh.pendingDocTier then return nil end
 
-  local currentGameTime = getGameTimeSeconds()
-  local orderGameTime = veh.pendingDocOrderTime or currentGameTime
-  local elapsedSeconds = currentGameTime - orderGameTime
   local requiredSeconds = (veh.pendingDocRequiredHours or 8) * 3600
-  local remainingSeconds = math.max(0, requiredSeconds - elapsedSeconds)
+  local remainingSeconds = math.max(0, veh.pendingDocRemainingSeconds or 0)
+  local elapsedSeconds = requiredSeconds - remainingSeconds
   local remainingHours = remainingSeconds / 3600
 
   return {
     tier = veh.pendingDocTier,
     requiredHours = veh.pendingDocRequiredHours or 8,
     elapsedSeconds = elapsedSeconds,
-    ready = veh.pendingDocReady or (elapsedSeconds >= requiredSeconds),
+    ready = veh.pendingDocReady or (remainingSeconds <= 0),
     remainingSeconds = remainingSeconds,
     remainingHours = remainingHours
   }
@@ -1619,8 +1628,9 @@ M.finalizeDocumentation = function(inventoryId)
 
   -- Clear pending document data
   veh.pendingDocTier = nil
-  veh.pendingDocOrderTime = nil
+  veh.pendingDocRemainingSeconds = nil
   veh.pendingDocRequiredHours = nil
+  veh.pendingDocLastUpdate = nil
   veh.pendingDocReady = nil
 
   -- Clear heat for this vehicle
@@ -1776,29 +1786,6 @@ function M.setCurrentVehicleHeat(level)
 
   ui_message("Heat set to " .. tostring(level), 3, "info")
   log("I", "Heat set to " .. tostring(level) .. " for vehicle " .. tostring(inventoryId))
-  return true
-end
-
--- Force trigger police detection (for testing)
--- Usage: carTheft_main.forcePoliceDetection()
-function M.forcePoliceDetection()
-  local stolenInfo = getPlayerStolenVehicleInfo()
-  if not stolenInfo then
-    ui_message("Not driving a stolen vehicle!", 3, "error")
-    return false
-  end
-
-  inspectedVehicleInventoryId = stolenInfo.inventoryId
-  log("I", "FORCE: Police detection triggered for vehicle " .. tostring(stolenInfo.inventoryId))
-  ui_message("Police spotted your stolen vehicle!", 4, "warning")
-
-  -- Start pursuit using proper API
-  local playerVehId = be:getPlayerVehicleID(0)
-  if playerVehId and gameplay_police and gameplay_police.setPursuitMode then
-    gameplay_police.setPursuitMode(1, playerVehId)
-    log("I", "Pursuit started via gameplay_police")
-  end
-
   return true
 end
 
