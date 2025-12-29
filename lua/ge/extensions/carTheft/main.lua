@@ -854,6 +854,82 @@ local function onBeforeRadialOpened()
       })
     end
   })
+
+  -- Add "Challenge Racer" option for street encounters (from streetRacing module)
+  core_quickAccess.addEntry({
+    level = "/root/sandbox/career/",
+    generator = function(entries)
+      if not career_career or not career_career.isActive() then return end
+
+      -- Check if streetRacing extension is loaded and has an active encounter
+      local streetRacing = extensions.carTheft_streetRacing
+      if not streetRacing then return end
+      if not streetRacing.getActiveEncounter then return end
+
+      local encounter = streetRacing.getActiveEncounter()
+      if not encounter then return end
+
+      -- Show challenge option with current bet
+      table.insert(entries, {
+        title = "Challenge Racer",
+        icon = "radial_flag",
+        priority = 45,
+        subtitle = string.format("Bet: $%d", encounter.currentBet or 5000),
+        onSelect = function()
+          return {"nested", "carTheft_racing_bet"}
+        end
+      })
+    end
+  })
+
+  -- Add nested bet selection menu for street racing
+  core_quickAccess.addEntry({
+    level = "/root/sandbox/career/carTheft_racing_bet/",
+    generator = function(entries)
+      local streetRacing = extensions.carTheft_streetRacing
+      if not streetRacing then return end
+
+      local encounter = streetRacing.getActiveEncounter()
+      if not encounter then return end
+
+      local playerMoney = 0
+      if career_modules_playerAttributes and career_modules_playerAttributes.getAttributeValue then
+        playerMoney = career_modules_playerAttributes.getAttributeValue("money") or 0
+      end
+
+      -- Bet options
+      local betOptions = {1000, 5000, 10000, 25000, 50000}
+
+      for _, bet in ipairs(betOptions) do
+        if bet <= playerMoney then
+          table.insert(entries, {
+            title = string.format("$%d", bet),
+            icon = "radial_money",
+            priority = 100 - bet/1000,
+            subtitle = string.format("Win: $%d", bet * 2),
+            onSelect = function()
+              streetRacing.challengeEncounter(bet, false)
+              return {"hide"}
+            end
+          })
+        end
+      end
+
+      -- Pink slip option
+      if encounter.allowPinkSlip then
+        table.insert(entries, {
+          title = "Pink Slip",
+          icon = "radial_garage",
+          priority = 10,
+          subtitle = "Winner takes all!",
+          onSelect = function()
+            streetRacing.challengeEncounter(0, true)
+            return {"hide"}
+          end
+        })
+      end
+    end
+  })
 end
 
 local function onQuickAccessLoaded()

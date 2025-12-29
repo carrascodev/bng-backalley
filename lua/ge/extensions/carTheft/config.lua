@@ -168,4 +168,39 @@ M.INSPECTION_BASE_CHANCE = 0.0005
 M.INSPECTION_POLICE_RANGE = 50
 M.INSPECTION_COOLDOWN = 60
 
+---------------------------------------------------------------------------
+-- Street Racing
+---------------------------------------------------------------------------
+
+-- Betting limits
+M.RACE_BET_MIN = 1000
+M.RACE_BET_MAX = 50000
+M.RACE_WIN_MULTIPLIER = 2.0
+
+-- Encounter spawning (night only)
+M.ENCOUNTER_SPAWN_CHANCE = 0.003        -- Per-frame chance when eligible
+M.ENCOUNTER_SPAWN_RANGE_MIN = 100       -- Min distance from player
+M.ENCOUNTER_SPAWN_RANGE_MAX = 200       -- Max distance from player
+M.ENCOUNTER_COOLDOWN = 600              -- 10 minutes between encounters
+M.ENCOUNTER_DESPAWN_DISTANCE = 500      -- Despawn if player drives away
+M.ENCOUNTER_FINISH_DISTANCE = 2000      -- Random finish point ~2km away
+
+-- AI difficulty
+M.AI_SKILL_MIN = 0.70                   -- Minimum AI driving skill
+M.AI_SKILL_MAX = 0.95                   -- Maximum AI driving skill
+M.AI_AGGRESSION_MIN = 0.5
+M.AI_AGGRESSION_MAX = 0.8
+
+-- Race mechanics
+M.RACE_COUNTDOWN_SECONDS = 3
+M.CHECKPOINT_WIDTH_DEFAULT = 12
+M.CHECKPOINT_WIDTH_MIN = 8
+M.CHECKPOINT_WIDTH_MAX = 25
+
+-- Pink slip recovery
+M.PINKSLIP_BUYBACK_MULTIPLIER = 1.5     -- 150% of vehicle value to buy back
+
+-- Map restrictions
+M.RACE_ALLOWED_MAPS = {"west_coast_usa"}
+
 return M

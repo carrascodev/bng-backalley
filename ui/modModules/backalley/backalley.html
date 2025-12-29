@@ -436,6 +436,164 @@
             </div>
         </div>
 
+        <!-- ================================================================= -->
+        <!-- STREET HEAT SITE - Racing and Betting -->
+        <!-- ================================================================= -->
+        <div class="website streetheat-site" ng-if="currentSite === 'streetheat'">
+            <div class="site-header">
+                <h1 class="site-title">&#127937; Street Heat</h1>
+                <p class="site-tagline">Underground Racing - Put Your Money Where Your Mouth Is</p>
+            </div>
+
+            <!-- Sub-navigation -->
+            <div class="sub-nav">
+                <button class="sub-nav-btn"
+                        ng-class="{active: streetHeatData.view === 'races'}"
+                        ng-click="setStreetHeatView('races')">
+                    Available Races
+                </button>
+                <button class="sub-nav-btn"
+                        ng-class="{active: streetHeatData.view === 'pinkslips'}"
+                        ng-click="setStreetHeatView('pinkslips')">
+                    Lost Vehicles
+                </button>
+                <button class="sub-nav-btn"
+                        ng-class="{active: streetHeatData.view === 'stats'}"
+                        ng-click="setStreetHeatView('stats')">
+                    Stats
+                </button>
+            </div>
+
+            <div class="site-content">
+                <!-- Races View -->
+                <div ng-if="streetHeatData.view === 'races'">
+                    <div ng-if="streetHeatData.loading" class="loading-message">
+                        <div class="loading-spinner"></div>
+                        <p>Loading races...</p>
+                    </div>
+
+                    <div ng-if="!streetHeatData.loading && streetHeatData.races.length === 0" class="empty-message">
+                        <p>No races available on this map.</p>
+                        <p>Use the race editor to create custom races!</p>
+                        <p class="editor-hint">Console: carTheft_raceEditor.help()</p>
+                    </div>
+
+                    <!-- Race Cards -->
+                    <div class="races-grid" ng-if="!streetHeatData.loading && streetHeatData.races.length > 0">
+                        <div class="race-card" ng-repeat="race in streetHeatData.races"
+                             ng-class="getRaceDifficultyClass(race.difficulty)">
+
+                            <div class="race-header">
+                                <span class="race-name">{{race.name}}</span>
+                                <span class="race-difficulty">{{getRaceDifficultyStars(race.difficulty)}}</span>
+                            </div>
+
+                            <div class="race-description">{{race.description}}</div>
+
+                            <div class="race-details">
+                                <div class="race-detail">
+                                    <span class="detail-label">Type:</span>
+                                    <span class="detail-value">{{race.type === 'circuit' ? 'Circuit' : 'Point to Point'}}</span>
+                                </div>
+                                <div class="race-detail">
+                                    <span class="detail-label">Checkpoints:</span>
+                                    <span class="detail-value">{{race.checkpointCount}}</span>
+                                </div>
+                                <div class="race-detail" ng-if="race.bestTime">
+                                    <span class="detail-label">Best Time:</span>
+                                    <span class="detail-value">{{formatRaceTime(race.bestTime)}}</span>
+                                </div>
+                            </div>
+
+                            <!-- Bet Selection -->
+                            <div class="bet-section">
+                                <div class="bet-label">Place Your Bet:</div>
+                                <div class="bet-slider-container">
+                                    <input type="range"
+                                           ng-model="race.selectedBet"
+                                           min="{{race.minBet}}"
+                                           max="{{race.maxBet}}"
+                                           step="1000"
+                                           ng-init="race.selectedBet = race.minBet"
+                                           class="bet-slider" />
+                                    <div class="bet-display">{{formatMoney(race.selectedBet)}}</div>
+                                </div>
+                                <div class="potential-win">
+                                    Win: {{formatMoney(race.selectedBet * 2)}}
+                                </div>
+                            </div>
+
+                            <div class="race-actions">
+                                <button class="btn-action btn-race"
+                                        ng-click="startRace(race)"
+                                        ng-disabled="!canAfford(race.selectedBet)"
+                                        ng-class="{'btn-disabled': !canAfford(race.selectedBet)}">
+                                    &#127937; Race for {{formatMoney(race.selectedBet)}}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pink Slips (Lost Vehicles) View -->
+                <div ng-if="streetHeatData.view === 'pinkslips'">
+                    <div class="info-box">
+                        <p>&#9888; <strong>Lost in a race?</strong></p>
+                        <p>Vehicles lost in pink slip races can be bought back here - at a premium (150%).</p>
+                    </div>
+
+                    <div ng-if="streetHeatData.lostVehicles.length === 0" class="empty-message">
+                        <p>&#10004; No lost vehicles.</p>
+                        <p>Race smart, or your car ends up here!</p>
+                    </div>
+
+                    <div class="lost-vehicles-list" ng-if="streetHeatData.lostVehicles.length > 0">
+                        <div class="lost-vehicle-card" ng-repeat="veh in streetHeatData.lostVehicles">
+                            <div class="vehicle-info">
+                                <span class="vehicle-name">{{veh.name}}</span>
+                                <span class="vehicle-value">Original: {{formatMoney(veh.value)}}</span>
+                            </div>
+                            <div class="buyback-price">
+                                Buyback: {{formatMoney(veh.buybackPrice)}}
+                            </div>
+                            <button class="btn-action btn-buyback"
+                                    ng-click="buyBackVehicle(veh)"
+                                    ng-disabled="!canAfford(veh.buybackPrice)"
+                                    ng-class="{'btn-disabled': !canAfford(veh.buybackPrice)}">
+                                &#128176; Buy Back
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats View -->
+                <div ng-if="streetHeatData.view === 'stats'">
+                    <div class="stats-grid">
+                        <div class="stat-card stat-wins">
+                            <div class="stat-value">{{streetHeatData.stats.racesWon}}</div>
+                            <div class="stat-label">Races Won</div>
+                        </div>
+                        <div class="stat-card stat-losses">
+                            <div class="stat-value">{{streetHeatData.stats.racesLost}}</div>
+                            <div class="stat-label">Races Lost</div>
+                        </div>
+                        <div class="stat-card stat-earnings">
+                            <div class="stat-value">{{formatMoney(streetHeatData.stats.totalWinnings)}}</div>
+                            <div class="stat-label">Total Winnings</div>
+                        </div>
+                        <div class="stat-card stat-spent">
+                            <div class="stat-value">{{formatMoney(streetHeatData.stats.totalLosses)}}</div>
+                            <div class="stat-label">Total Losses</div>
+                        </div>
+                    </div>
+                    <div class="win-rate-display" ng-if="streetHeatData.stats.racesWon + streetHeatData.stats.racesLost > 0">
+                        <div class="win-rate-label">Win Rate</div>
+                        <div class="win-rate-value">{{streetHeatData.stats.winRate}}%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Browser Status Bar -->
