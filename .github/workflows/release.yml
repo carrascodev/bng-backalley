@@ -36,11 +36,11 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          # Check if CHANGELOGS.md has this version
-          if grep -q "## \[*$VERSION\]" CHANGELOGS.md 2>/dev/null; then
+          TAG="${{ steps.version.outputs.tag }}"
+          # Check if CHANGELOGS.md has this version (e.g., ## [alpha/0.0.1])
+          if grep -q "## \[$TAG\]" CHANGELOGS.md 2>/dev/null; then
             # Extract changelog section for this version
-            CHANGELOG=$(sed -n "/## \[*$VERSION\]/,/## \[/p" CHANGELOGS.md | sed '$d')
+            CHANGELOG=$(sed -n "/## \[$TAG\]/,/## \[/p" CHANGELOGS.md | sed '$d')
           else
             # Generate from commits since last tag
             PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
