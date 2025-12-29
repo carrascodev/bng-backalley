@@ -1,0 +1,63 @@
+name: Release Mod
+
+on:
+  push:
+    tags:
+      - 'release/*'
+      - 'alpha/*'
+      - 'beta/*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog
+
+      - name: Extract version info
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#*/}"
+          TYPE="${TAG%%/*}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          echo "prerelease=$([[ "$TYPE" == "alpha" || "$TYPE" == "beta" ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+
+      - name: Build zip
+        run: |
+          ZIP_NAME="backAlley.${{ steps.version.outputs.version }}-${{ steps.version.outputs.type }}.zip"
+          zip -r "$ZIP_NAME" info.json lua/ scripts/ ui/
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+        id: build
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Check if CHANGELOGS.md has this version
+          if grep -q "## \[*$VERSION\]" CHANGELOGS.md 2>/dev/null; then
+            # Extract changelog section for this version
+            CHANGELOG=$(sed -n "/## \[*$VERSION\]/,/## \[/p" CHANGELOGS.md | sed '$d')
+          else
+            # Generate from commits since last tag
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              CHANGELOG=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD)
+            else
+              CHANGELOG=$(git log --pretty=format:"- %s")
+            fi
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: ${{ steps.build.outputs.zip_name }}
