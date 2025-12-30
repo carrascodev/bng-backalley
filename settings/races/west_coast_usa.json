@@ -1,10 +1,1 @@
-{
-  "version": "1.0",
-  "map": "west_coast_usa",
-  "races": {},
-  "encounters": {
-    "spawnChance": 0.003,
-    "cooldownMinutes": 10,
-    "finishDistance": 2000
-  }
-}
+{"encounters":{"spawnChance":0.003,"finishDistance":2000,"cooldownMinutes":10},"version":"1.0","map":"west_coast_usa","races":{"race01":{"difficulty":2,"minBet":1000,"start":{"pos":{"y":122.35036468506,"x":-569.62908935547,"z":101.23443603516},"width":15,"rot":{"y":-0.0038286598864943,"z":-0.75152850151062,"x":-0.0033607431687415,"w":0.65968090295792}},"checkpoints":[{"index":1,"node":{"y":152.96363830566,"width":12,"x":-540.00372314453,"z":100.42028045654}},{"index":2,"node":{"y":224.07429504395,"width":12,"x":-594.65063476563,"z":112.47059631348}},{"index":3,"node":{"y":425.36785888672,"width":12,"x":-394.99038696289,"z":96.18302154541}},{"index":4,"node":{"y":661.77111816406,"width":12,"x":-620.29376220703,"z":91.675735473633}}],"name":"Race01","maxBet":50000,"type":"point_to_point","description":"Custom street race","id":"race01","finish":{"pos":{"y":662.43603515625,"x":-941.01721191406,"z":112.25651550293},"width":15,"rot":{"y":-0.0038286598864943,"z":-0.75152850151062,"x":-0.0033607431687415,"w":0.65968090295792}}}}}

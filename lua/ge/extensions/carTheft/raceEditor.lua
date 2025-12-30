@@ -398,13 +398,21 @@ function M.save()
     return false
   end
 
-  -- Save to mods folder for debugging (can be copied to settings later)
-  local dirPath = "/mods/car_theft_career/settings/races"
-  local filePath = dirPath .. "/" .. mapName .. ".json"
+  -- Save to source folder first (car_theft_career), fallback to mods folder
+  local primaryPath = "/car_theft_career/settings/races/" .. mapName .. ".json"
+  local fallbackPath = "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
 
-  -- Load existing races
+  -- Try to read from primary path first, then fallback
+  local filePath = primaryPath
   local existingRaces = {}
-  local content = readFile(filePath)
+  local content = readFile(primaryPath)
+  if not content then
+    content = readFile(fallbackPath)
+    if content then
+      filePath = fallbackPath
+    end
+  end
+
   if content then
     local success, data = pcall(jsonDecode, content)
     if success and data then
@@ -436,19 +444,21 @@ function M.save()
     return false
   end
 
-  -- Write file
-  local success = writeFile(filePath, jsonContent)
-  if not success then
-    -- Try alternative path (unpacked mod folder)
-    local altPath = "/car_theft_career/settings/races/" .. mapName .. ".json"
-    success = writeFile(altPath, jsonContent)
-
-    if not success then
-      uiMessage("Error: Failed to save file. Check console for details.", 5, "error")
-      log("E", "Failed to write to: " .. filePath .. " or " .. altPath)
-      return false
+  -- Write to source folder first (primary), then try fallback
+  local success = writeFile(primaryPath, jsonContent)
+  if success then
+    filePath = primaryPath
+    log("I", "Saved race to source folder: " .. primaryPath)
+  else
+    -- Try fallback path (mods folder)
+    success = writeFile(fallbackPath, jsonContent)
+    if success then
+      filePath = fallbackPath
+      log("I", "Saved race to mods folder: " .. fallbackPath)
     else
-      filePath = altPath
+      uiMessage("Error: Failed to save file. Check console for details.", 5, "error")
+      log("E", "Failed to write to: " .. primaryPath .. " or " .. fallbackPath)
+      return false
     end
   end
 

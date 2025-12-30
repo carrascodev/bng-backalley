@@ -501,18 +501,23 @@ angular.module('beamng.stuff')
     $scope.streetHeatData.message = null;
   };
 
-  // Start a race
+  // Accept a race - pass adversary info from dynamic race generation
   $scope.startRace = function(race) {
     if (!$scope.canAfford(race.selectedBet)) return;
 
-    bngApi.engineLua('carTheft_streetRacing.startRace("' + race.id + '", ' + race.selectedBet + ')', function(result) {
+    // Call acceptRace with adversary info
+    var luaCall = 'carTheft_streetRacing.acceptRace("' + race.id + '", ' + race.selectedBet + ', "' + (race.adversaryName || '') + '", "' + (race.adversaryModel || '') + '")';
+
+    bngApi.engineLua(luaCall, function(result) {
       $scope.$evalAsync(function() {
         if (result && result[0]) {
+          // UI will be closed by Lua (guihooks.trigger('MenuHide'))
+          // But also close browser just in case
           $scope.closeBrowser();
         } else {
           $scope.streetHeatData.message = {
             type: 'error',
-            text: result ? result[1] : 'Failed to start race'
+            text: result ? result[1] : 'Failed to accept race'
           };
         }
       });

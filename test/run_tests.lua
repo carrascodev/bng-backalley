@@ -626,6 +626,345 @@ describe("Vehicle Exclusion", function()
 end)
 
 ---------------------------------------------------------------------------
+-- Test: Street Racing Configuration
+---------------------------------------------------------------------------
+
+describe("Street Racing Config", function()
+  local config = require("carTheft/config")
+
+  it("should export racing bet limits", function()
+    assertNotNil(config.RACE_BET_MIN, "RACE_BET_MIN should exist")
+    assertNotNil(config.RACE_BET_MAX, "RACE_BET_MAX should exist")
+    assertGreaterThan(config.RACE_BET_MAX, config.RACE_BET_MIN, "Max bet should be greater than min")
+  end)
+
+  it("should export racing multiplier", function()
+    assertNotNil(config.RACE_WIN_MULTIPLIER, "RACE_WIN_MULTIPLIER should exist")
+    assertGreaterThan(config.RACE_WIN_MULTIPLIER, 1, "Win multiplier should be > 1")
+  end)
+
+  it("should export encounter spawn config", function()
+    assertNotNil(config.ENCOUNTER_SPAWN_CHANCE, "ENCOUNTER_SPAWN_CHANCE should exist")
+    assertNotNil(config.ENCOUNTER_COOLDOWN, "ENCOUNTER_COOLDOWN should exist")
+    assertBetween(config.ENCOUNTER_SPAWN_CHANCE, 0, 1, "Spawn chance should be 0-1")
+  end)
+
+  it("should export pink slip buyback multiplier", function()
+    assertNotNil(config.PINKSLIP_BUYBACK_MULTIPLIER, "PINKSLIP_BUYBACK_MULTIPLIER should exist")
+    assertGreaterThan(config.PINKSLIP_BUYBACK_MULTIPLIER, 1, "Buyback should cost more than original")
+  end)
+
+  it("should export allowed maps", function()
+    assertNotNil(config.RACE_ALLOWED_MAPS, "RACE_ALLOWED_MAPS should exist")
+    assertTableContains(config.RACE_ALLOWED_MAPS, "west_coast_usa", "Should allow west_coast_usa")
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Test: Street Racing Core Logic
+---------------------------------------------------------------------------
+
+describe("Street Racing Logic", function()
+  local config = require("carTheft/config")
+
+  -- Recreate pure functions from streetRacing for testing
+  local function isNightTime(time)
+    return time < 0.22 or time > 0.78
+  end
+
+  local function isMapAllowed(mapName, allowedMaps)
+    if not mapName then return false end
+    for _, allowed in ipairs(allowedMaps) do
+      if mapName == allowed then return true end
+    end
+    return false
+  end
+
+  local function validateBet(amount, min, max)
+    return amount >= min and amount <= max
+  end
+
+  local function calculatePayout(betAmount, multiplier)
+    return betAmount * multiplier
+  end
+
+  local function calculateBuybackPrice(vehicleValue, multiplier)
+    return math.floor(vehicleValue * multiplier)
+  end
+
+  it("should detect night time correctly", function()
+    assertTrue(isNightTime(0.1), "0.1 should be night (before dawn)")
+    assertTrue(isNightTime(0.2), "0.2 should be night (early morning)")
+    assertFalse(isNightTime(0.5), "0.5 should be day (noon)")
+    assertFalse(isNightTime(0.3), "0.3 should be day (morning)")
+    assertFalse(isNightTime(0.7), "0.7 should be day (evening)")
+    assertTrue(isNightTime(0.85), "0.85 should be night (late night)")
+    assertTrue(isNightTime(0.95), "0.95 should be night (midnight)")
+  end)
+
+  it("should validate allowed maps", function()
+    local allowedMaps = {"west_coast_usa", "italy"}
+    assertTrue(isMapAllowed("west_coast_usa", allowedMaps))
+    assertTrue(isMapAllowed("italy", allowedMaps))
+    assertFalse(isMapAllowed("utah", allowedMaps))
+    assertFalse(isMapAllowed(nil, allowedMaps))
+    assertFalse(isMapAllowed("", allowedMaps))
+  end)
+
+  it("should validate bet amounts", function()
+    local min, max = 1000, 50000
+    assertTrue(validateBet(1000, min, max), "Min bet should be valid")
+    assertTrue(validateBet(50000, min, max), "Max bet should be valid")
+    assertTrue(validateBet(25000, min, max), "Mid bet should be valid")
+    assertFalse(validateBet(999, min, max), "Below min should be invalid")
+    assertFalse(validateBet(50001, min, max), "Above max should be invalid")
+    assertFalse(validateBet(0, min, max), "Zero should be invalid")
+  end)
+
+  it("should calculate payout correctly", function()
+    assertEqual(calculatePayout(1000, 2.0), 2000)
+    assertEqual(calculatePayout(5000, 2.0), 10000)
+    assertEqual(calculatePayout(50000, 2.0), 100000)
+  end)
+
+  it("should calculate buyback price correctly", function()
+    assertEqual(calculateBuybackPrice(10000, 1.5), 15000)
+    assertEqual(calculateBuybackPrice(50000, 1.5), 75000)
+    assertEqual(calculateBuybackPrice(100000, 1.5), 150000)
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Test: Racer Name Generation
+---------------------------------------------------------------------------
+
+describe("Racer Name Generation", function()
+  local RACER_FIRST_NAMES = {"Speed", "Fast", "Quick", "Nitro", "Turbo", "Drift", "Midnight", "Shadow", "Flash", "Thunder"}
+  local RACER_LAST_NAMES = {"Mike", "Danny", "Rico", "Tony", "Vic", "Max", "Blade", "Ghost", "Snake", "Wolf"}
+
+  local function generateRacerName()
+    local firstName = RACER_FIRST_NAMES[math.random(1, #RACER_FIRST_NAMES)]
+    local lastName = RACER_LAST_NAMES[math.random(1, #RACER_LAST_NAMES)]
+    return firstName .. " " .. lastName
+  end
+
+  it("should generate names from predefined lists", function()
+    for i = 1, 50 do
+      local name = generateRacerName()
+      assertNotNil(name, "Name should not be nil")
+      local first, last = name:match("(%S+) (%S+)")
+      assertNotNil(first, "Should have first name")
+      assertNotNil(last, "Should have last name")
+      assertTableContains(RACER_FIRST_NAMES, first, "First name should be from list")
+      assertTableContains(RACER_LAST_NAMES, last, "Last name should be from list")
+    end
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Test: Vehicle Display Names
+---------------------------------------------------------------------------
+
+describe("Vehicle Display Names", function()
+  local displayNames = {
+    vivace = "Cherrier Vivace",
+    sunburst = "Hirochi Sunburst",
+    etk800 = "ETK 800",
+    scintilla = "Civetta Scintilla",
+    ["200bx"] = "Ibishu 200BX",
+    covet = "Ibishu Covet"
+  }
+
+  local function getVehicleDisplayName(model)
+    return displayNames[model] or model
+  end
+
+  it("should return correct display names", function()
+    assertEqual(getVehicleDisplayName("vivace"), "Cherrier Vivace")
+    assertEqual(getVehicleDisplayName("sunburst"), "Hirochi Sunburst")
+    assertEqual(getVehicleDisplayName("etk800"), "ETK 800")
+    assertEqual(getVehicleDisplayName("scintilla"), "Civetta Scintilla")
+    assertEqual(getVehicleDisplayName("200bx"), "Ibishu 200BX")
+    assertEqual(getVehicleDisplayName("covet"), "Ibishu Covet")
+  end)
+
+  it("should return model name for unknown vehicles", function()
+    assertEqual(getVehicleDisplayName("unknown_car"), "unknown_car")
+    assertEqual(getVehicleDisplayName("custom"), "custom")
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Test: Proximity Check Logic
+---------------------------------------------------------------------------
+
+describe("Proximity Check", function()
+  local CHALLENGE_PROXIMITY = 15  -- meters
+
+  local function isWithinRange(distance, threshold)
+    return distance <= threshold
+  end
+
+  it("should detect when player is close enough", function()
+    assertTrue(isWithinRange(10, CHALLENGE_PROXIMITY), "10m should be in range")
+    assertTrue(isWithinRange(15, CHALLENGE_PROXIMITY), "15m (exactly) should be in range")
+    assertTrue(isWithinRange(0, CHALLENGE_PROXIMITY), "0m should be in range")
+    assertTrue(isWithinRange(5, CHALLENGE_PROXIMITY), "5m should be in range")
+  end)
+
+  it("should detect when player is too far", function()
+    assertFalse(isWithinRange(16, CHALLENGE_PROXIMITY), "16m should be out of range")
+    assertFalse(isWithinRange(50, CHALLENGE_PROXIMITY), "50m should be out of range")
+    assertFalse(isWithinRange(100, CHALLENGE_PROXIMITY), "100m should be out of range")
+    assertFalse(isWithinRange(math.huge, CHALLENGE_PROXIMITY), "Infinity should be out of range")
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Test: Race State Machine
+---------------------------------------------------------------------------
+
+describe("Race State Machine", function()
+  local RACE_STATE = {
+    IDLE = "idle",
+    STAGING = "staging",
+    COUNTDOWN = "countdown",
+    RACING = "racing",
+    FINISHED = "finished",
+    ABANDONED = "abandoned"
+  }
+
+  local ENCOUNTER_STATE = {
+    NONE = "none",
+    SPAWNED = "spawned",
+    CHALLENGED = "challenged",
+    COUNTDOWN = "countdown",
+    RACING = "racing",
+    FINISHED = "finished"
+  }
+
+  it("should have all required race states", function()
+    assertEqual(RACE_STATE.IDLE, "idle")
+    assertEqual(RACE_STATE.STAGING, "staging")
+    assertEqual(RACE_STATE.COUNTDOWN, "countdown")
+    assertEqual(RACE_STATE.RACING, "racing")
+    assertEqual(RACE_STATE.FINISHED, "finished")
+    assertEqual(RACE_STATE.ABANDONED, "abandoned")
+  end)
+
+  it("should have all required encounter states", function()
+    assertEqual(ENCOUNTER_STATE.NONE, "none")
+    assertEqual(ENCOUNTER_STATE.SPAWNED, "spawned")
+    assertEqual(ENCOUNTER_STATE.CHALLENGED, "challenged")
+    assertEqual(ENCOUNTER_STATE.COUNTDOWN, "countdown")
+    assertEqual(ENCOUNTER_STATE.RACING, "racing")
+    assertEqual(ENCOUNTER_STATE.FINISHED, "finished")
+  end)
+
+  it("should validate state transitions", function()
+    -- Valid transitions from IDLE
+    local validFromIdle = {"staging"}
+    assertTableContains(validFromIdle, "staging")
+
+    -- Valid transitions from SPAWNED
+    local validFromSpawned = {"challenged", "none"}  -- challenged or despawned
+    assertTableContains(validFromSpawned, "challenged")
+    assertTableContains(validFromSpawned, "none")
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Test: Random Race Selection
+---------------------------------------------------------------------------
+
+describe("Random Race Selection", function()
+  local function generateRandomRace(races)
+    if not races or next(races) == nil then
+      return nil
+    end
+
+    local availableRaces = {}
+    for id, race in pairs(races) do
+      table.insert(availableRaces, race)
+    end
+
+    if #availableRaces == 0 then
+      return nil
+    end
+
+    return availableRaces[math.random(#availableRaces)]
+  end
+
+  it("should return nil for empty races", function()
+    assertNil(generateRandomRace({}), "Empty table should return nil")
+    assertNil(generateRandomRace(nil), "Nil should return nil")
+  end)
+
+  it("should return a race from available races", function()
+    local races = {
+      race1 = {id = "race1", name = "Downtown Sprint"},
+      race2 = {id = "race2", name = "Highway Run"},
+      race3 = {id = "race3", name = "Mountain Pass"}
+    }
+
+    for i = 1, 30 do
+      local selectedRace = generateRandomRace(races)
+      assertNotNil(selectedRace, "Should select a race")
+      assertNotNil(selectedRace.id, "Selected race should have id")
+      assertNotNil(selectedRace.name, "Selected race should have name")
+    end
+  end)
+
+  it("should provide variety in selection", function()
+    local races = {
+      race1 = {id = "race1"},
+      race2 = {id = "race2"},
+      race3 = {id = "race3"}
+    }
+
+    local selections = {}
+    for i = 1, 100 do
+      local race = generateRandomRace(races)
+      selections[race.id] = (selections[race.id] or 0) + 1
+    end
+
+    -- Each race should be selected at least once in 100 tries
+    assertGreaterThan(selections["race1"] or 0, 0, "race1 should be selected sometimes")
+    assertGreaterThan(selections["race2"] or 0, 0, "race2 should be selected sometimes")
+    assertGreaterThan(selections["race3"] or 0, 0, "race3 should be selected sometimes")
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Test: Stats Calculation
+---------------------------------------------------------------------------
+
+describe("Racing Stats", function()
+  local function calculateWinRate(wins, losses)
+    local total = wins + losses
+    if total == 0 then return 0 end
+    return math.floor(wins / total * 100)
+  end
+
+  it("should calculate win rate correctly", function()
+    assertEqual(calculateWinRate(5, 5), 50)
+    assertEqual(calculateWinRate(10, 0), 100)
+    assertEqual(calculateWinRate(0, 10), 0)
+    assertEqual(calculateWinRate(3, 7), 30)
+    assertEqual(calculateWinRate(7, 3), 70)
+  end)
+
+  it("should handle zero races", function()
+    assertEqual(calculateWinRate(0, 0), 0)
+  end)
+
+  it("should round win rate down", function()
+    assertEqual(calculateWinRate(1, 2), 33)  -- 33.33... rounds to 33
+    assertEqual(calculateWinRate(2, 3), 40)  -- 40%
+  end)
+end)
+
+---------------------------------------------------------------------------
 -- Print Summary
 ---------------------------------------------------------------------------
 

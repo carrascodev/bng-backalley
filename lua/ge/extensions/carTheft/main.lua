@@ -1849,6 +1849,13 @@ function M.debugPoliceCheck()
   print("=== End Debug ===")
 end
 
+-- Open the BackAlley UI from console
+-- Usage: carTheft_main.openUI()
+function M.openUI()
+  guihooks.trigger('ChangeState', {state = 'menu.backalley'})
+  log("I", "Opening BackAlley UI")
+end
+
 -- Set heat for current vehicle (for testing/fixing old vehicles)
 -- Usage: carTheft_main.setCurrentVehicleHeat(100)
 function M.setCurrentVehicleHeat(level)

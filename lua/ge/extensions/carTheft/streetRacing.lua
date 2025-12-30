@@ -7,6 +7,9 @@ local M = {}
 local logger = require("carTheft/logger")
 local LOG_TAG = "carTheft_streetRacing"
 
+-- Checkpoint manager
+local raceCheckpoints = require("carTheft/raceCheckpoints")
+
 -- Dependencies
 M.dependencies = {
   'gameplay_city',
@@ -41,8 +44,8 @@ local RACE_CONFIG = {
   ALLOWED_MAPS = config.RACE_ALLOWED_MAPS or {"west_coast_usa"}
 }
 
--- AI racer vehicles
-local RACER_VEHICLES = {"vivace", "sunburst", "etk800", "scintilla", "200bx", "covet"}
+-- AI racer vehicles (must match folder names in /vehicles/)
+local RACER_VEHICLES = {"vivace", "sunburst2", "etk800", "bx", "covet", "etkc", "sbr"}
 
 -- Racer name generation
 local RACER_FIRST_NAMES = {"Speed", "Fast", "Quick", "Nitro", "Turbo", "Drift", "Midnight", "Shadow", "Flash", "Thunder"}
@@ -85,11 +88,17 @@ local racesLoaded = false
 local activeRace = {
   state = RACE_STATE.IDLE,
   raceId = nil,
+  trackId = nil,
   raceName = nil,
   raceData = nil,
   betAmount = 0,
   isPinkSlip = false,
   playerCarInventoryId = nil,
+
+  -- Adversary info (from dynamic race generation)
+  adversaryName = nil,
+  adversaryModel = nil,
+  adversaryVehId = nil,
 
   -- Checkpoints
   checkpoints = {},
@@ -100,6 +109,10 @@ local activeRace = {
   startTime = 0,
   lastCheckpointTime = 0,
   splitTimes = {},
+
+  -- Countdown
+  countdownTime = 0,
+  lastCountdown = 0,
 
   -- Triggers (BeamNGTrigger objects)
   triggers = {},
@@ -207,11 +220,12 @@ local function getVehicleDisplayName(model)
   -- Map model names to display names
   local displayNames = {
     vivace = "Cherrier Vivace",
-    sunburst = "Hirochi Sunburst",
-    etk800 = "ETK 800",
-    scintilla = "Civetta Scintilla",
-    ["200bx"] = "Ibishu 200BX",
-    covet = "Ibishu Covet"
+    sunburst2 = "Hirochi Sunburst",
+    etk800 = "ETK 800-Series",
+    bx = "Ibishu 200BX",
+    covet = "Ibishu Covet",
+    etkc = "ETK-K Series",
+    sbr = "Hirochi SBR4"
   }
   return displayNames[model] or model
 end
@@ -256,13 +270,13 @@ local function loadRaces()
   end
 
   -- Try multiple paths in order of priority:
-  -- 1. Mod's settings folder (bundled with mod)
-  -- 2. Mods folder (debugging location)
-  -- 3. Unpacked mod folder
+  -- 1. Source folder (for development)
+  -- 2. Mod's settings folder (bundled with mod)
+  -- 3. Mods folder (debugging location)
   local paths = {
+    "/car_theft_career/settings/races/" .. mapName .. ".json",
     "/settings/races/" .. mapName .. ".json",
-    "/mods/car_theft_career/settings/races/" .. mapName .. ".json",
-    "/car_theft_career/settings/races/" .. mapName .. ".json"
+    "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
   }
 
   local content = nil
@@ -308,21 +322,42 @@ function M.getRacesForUI()
     loadRaces()
   end
 
-  local result = {}
+  -- Collect available tracks
+  local tracks = {}
+  for id, track in pairs(loadedRaces) do
+    table.insert(tracks, {id = id, data = track})
+  end
 
-  for raceId, raceData in pairs(loadedRaces) do
-    local entry = {
-      id = raceId,
-      name = raceData.name or raceId,
-      description = raceData.description or "",
-      type = raceData.type or "point_to_point",
-      difficulty = raceData.difficulty or 1,
-      minBet = raceData.minBet or RACE_CONFIG.BET_MIN,
-      maxBet = raceData.maxBet or RACE_CONFIG.BET_MAX,
-      checkpointCount = raceData.checkpoints and #raceData.checkpoints or 0,
-      bestTime = stats.bestTimes[raceId] or nil
-    }
-    table.insert(result, entry)
+  if #tracks == 0 then
+    return {}
+  end
+
+  -- Generate 3 dynamic races with random adversaries
+  local result = {}
+  for i = 1, 3 do
+    local trackInfo = tracks[math.random(#tracks)]
+    local track = trackInfo.data
+
+    -- Random adversary
+    local advName = generateRacerName()
+    local advModel = RACER_VEHICLES[math.random(#RACER_VEHICLES)]
+    local advVehicle = getVehicleDisplayName(advModel)
+
+    table.insert(result, {
+      id = trackInfo.id .. "_" .. i,
+      trackId = trackInfo.id,
+      name = "vs " .. advName,
+      description = "Racing a " .. advVehicle,
+      adversaryName = advName,
+      adversaryModel = advModel,
+      adversaryVehicle = advVehicle,
+      type = track.type or "point_to_point",
+      difficulty = track.difficulty or 1,
+      minBet = track.minBet or RACE_CONFIG.BET_MIN,
+      maxBet = track.maxBet or RACE_CONFIG.BET_MAX,
+      checkpointCount = track.checkpoints and #track.checkpoints or 0,
+      bestTime = stats.bestTimes[trackInfo.id] or nil
+    })
   end
 
   -- Sort by difficulty
@@ -409,6 +444,123 @@ end
 -- Betting System
 ---------------------------------------------------------------------------
 
+local function deductBet(amount)
+  if career_modules_playerAttributes and career_modules_playerAttributes.addAttribute then
+    career_modules_playerAttributes.addAttribute("money", -amount, {
+      label = "Street Racing Bet",
+      tags = {"gameplay", "streetRacing", "bet"}
+    })
+  end
+  log("I", "Bet deducted: " .. formatMoney(amount))
+end
+
+local function spawnAdversary()
+  if not activeRace.raceData or not activeRace.raceData.start then
+    log("W", "Cannot spawn adversary - no race data")
+    return false
+  end
+
+  local startPos = activeRace.raceData.start.pos
+  local startRot = activeRace.raceData.start.rot
+  local model = activeRace.adversaryModel or RACER_VEHICLES[math.random(#RACER_VEHICLES)]
+
+  -- Calculate spawn position: offset 4m to the RIGHT based on rotation
+  local rotation = startRot and quat(startRot.x, startRot.y, startRot.z, startRot.w) or quat(0, 0, 0, 1)
+  local basePos = vec3(startPos.x, startPos.y, startPos.z)
+  -- Use rotation to find the "right" direction (perpendicular to facing)
+  local rightVector = rotation * vec3(4, 0, 0)  -- 4m to the right
+  local spawnPos = basePos + rightVector
+
+  -- Build spawn options
+  local spawnOptions = {
+    pos = spawnPos,
+    rot = rotation,
+    autoEnterVehicle = false,
+    vehicleName = "street_racer_adversary"
+  }
+
+  log("I", string.format("Spawning adversary model '%s' at (%.1f, %.1f, %.1f)", model, spawnPos.x, spawnPos.y, spawnPos.z))
+
+  local success, vehObj = pcall(function()
+    return core_vehicles.spawnNewVehicle(model, spawnOptions)
+  end)
+
+  if success and vehObj then
+    activeRace.adversaryVehId = vehObj:getID()
+    log("I", "Adversary spawned: " .. (activeRace.adversaryName or "Racer") .. " in " .. getVehicleDisplayName(model))
+
+    -- Set AI to stop and wait for race start
+    vehObj:queueLuaCommand('ai.setMode("stop")')
+
+    return true
+  else
+    log("E", "Failed to spawn adversary vehicle: " .. tostring(vehObj))
+    return false
+  end
+end
+
+-- Start AI racing towards finish line using checkpoint path
+local function startAdversaryRacing()
+  if not activeRace.adversaryVehId then 
+    log("E", "No adversary vehicle to start racing")
+  end
+
+  local advVeh = be:getObjectByID(activeRace.adversaryVehId)
+  if not advVeh then return end
+
+  -- Build waypoint list from checkpoints
+  local waypoints = {}
+
+  -- Add all checkpoints
+  if activeRace.raceData.checkpoints then
+    for _, cp in ipairs(activeRace.raceData.checkpoints) do
+      if cp.node then
+        table.insert(waypoints, {cp.node.x, cp.node.y, cp.node.z})
+      end
+    end
+  end
+
+  -- Add finish position
+  if activeRace.raceData.finish and activeRace.raceData.finish.pos then
+    local fp = activeRace.raceData.finish.pos
+    table.insert(waypoints, {fp.x, fp.y, fp.z})
+  end
+
+  if #waypoints == 0 then
+    log("W", "No waypoints for AI")
+    return
+  end
+
+  -- Serialize waypoints as vec3 table
+  local wpStrings = {}
+  for _, wp in ipairs(waypoints) do
+    table.insert(wpStrings, string.format("vec3(%f,%f,%f)", wp[1], wp[2], wp[3]))
+  end
+  local wpListStr = "{" .. table.concat(wpStrings, ",") .. "}"
+
+  -- CRITICAL: Enable racing mode FIRST (based on carmeets.lua pattern)
+  advVeh:queueLuaCommand('ai.setMode("manual")')
+  advVeh:queueLuaCommand('ai.setRacing(true)')
+  advVeh:queueLuaCommand('ai.driveInLane("on")')
+  advVeh:queueLuaCommand('ai.setAggression(0.9)')
+
+  -- Then set the path with racing parameters
+  local aiCmd = string.format([[
+    ai.driveUsingPath({
+      wpTargetList = %s,
+      noOfLaps = 1,
+      aggression = 0.9,
+      avoidCars = "off",
+      routeSpeed = 250,
+      routeSpeedMode = "limit"
+    })
+  ]], wpListStr)
+
+  advVeh:queueLuaCommand(aiCmd)
+
+  log("I", "Adversary AI started racing with " .. #waypoints .. " waypoints")
+end
+
 local function placeBet(amount, isPinkSlip, inventoryId)
   if amount < RACE_CONFIG.BET_MIN or amount > RACE_CONFIG.BET_MAX then
     return false, "Bet must be between " .. formatMoney(RACE_CONFIG.BET_MIN) .. " and " .. formatMoney(RACE_CONFIG.BET_MAX)
@@ -420,12 +572,7 @@ local function placeBet(amount, isPinkSlip, inventoryId)
   end
 
   -- Deduct bet
-  if career_modules_playerAttributes and career_modules_playerAttributes.addAttribute then
-    career_modules_playerAttributes.addAttribute("money", -amount, {
-      label = "Street Racing Bet",
-      tags = {"gameplay", "streetRacing", "bet"}
-    })
-  end
+  deductBet(amount)
 
   activeRace.betAmount = amount
   activeRace.isPinkSlip = isPinkSlip or false
@@ -457,10 +604,141 @@ local function payout(won, amount)
 end
 
 ---------------------------------------------------------------------------
+-- Race Cleanup (defined early for forward references)
+---------------------------------------------------------------------------
+
+local function cleanupRace()
+  -- Remove triggers
+  for _, trigger in ipairs(activeRace.triggers) do
+    if trigger and trigger:isValid() then
+      trigger:delete()
+    end
+  end
+
+  -- Remove adversary vehicle if spawned
+  if activeRace.adversaryVehId then
+    local veh = be:getObjectByID(activeRace.adversaryVehId)
+    if veh then
+      veh:delete()
+    end
+  end
+
+  -- Clean up visual checkpoints
+  raceCheckpoints.cleanup()
+
+  -- Clear navigation
+  M.clearNavigation()
+
+  -- Reset state
+  activeRace = {
+    state = RACE_STATE.IDLE,
+    raceId = nil,
+    trackId = nil,
+    raceName = nil,
+    raceData = nil,
+    betAmount = 0,
+    isPinkSlip = false,
+    playerCarInventoryId = nil,
+    adversaryName = nil,
+    adversaryModel = nil,
+    adversaryVehId = nil,
+    checkpoints = {},
+    currentCheckpoint = 0,
+    totalCheckpoints = 0,
+    startTime = 0,
+    lastCheckpointTime = 0,
+    splitTimes = {},
+    countdownTime = 0,
+    lastCountdown = 0,
+    triggers = {},
+    startTrigger = nil,
+    finishTrigger = nil
+  }
+end
+
+---------------------------------------------------------------------------
+-- Checkpoint Handling
+---------------------------------------------------------------------------
+
+-- Called when player hits a checkpoint
+local function onCheckpointHit(checkpointIndex, totalCheckpoints, isFinish)
+  if activeRace.state ~= RACE_STATE.RACING then
+    return
+  end
+
+  activeRace.currentCheckpoint = checkpointIndex
+  local currentTime = os.clock() - activeRace.startTime
+
+  -- Record split time
+  table.insert(activeRace.splitTimes, currentTime)
+
+  log("I", string.format("Checkpoint %d/%d - Time: %.2fs", checkpointIndex, totalCheckpoints, currentTime))
+
+  if isFinish then
+    -- Race finished!
+    activeRace.state = RACE_STATE.FINISHED
+    local raceTime = currentTime
+
+    -- Check if we beat the adversary (simple: player always wins for now)
+    -- TODO: Actually track adversary position
+    local won = true
+
+    if won then
+      payout(true)
+      guihooks.trigger('toastrMsg', {
+        type = "success",
+        title = "You Won!",
+        msg = string.format("Time: %.2fs - Winnings: %s", raceTime, formatMoney(activeRace.betAmount * RACE_CONFIG.WIN_MULTIPLIER))
+      })
+
+      -- Update best time
+      if not stats.bestTimes[activeRace.trackId] or raceTime < stats.bestTimes[activeRace.trackId] then
+        stats.bestTimes[activeRace.trackId] = raceTime
+        log("I", "New best time: " .. raceTime)
+      end
+    else
+      payout(false)
+      guihooks.trigger('toastrMsg', {
+        type = "error",
+        title = "You Lost!",
+        msg = string.format("Time: %.2fs - Lost: %s", raceTime, formatMoney(activeRace.betAmount))
+      })
+    end
+
+    -- Cleanup after short delay
+    -- TODO: Use timer instead of immediate cleanup
+    cleanupRace()
+  else
+    -- Checkpoint passed
+    guihooks.trigger('toastrMsg', {
+      type = "info",
+      title = string.format("Checkpoint %d/%d", checkpointIndex, totalCheckpoints - 1),
+      msg = string.format("%.2fs", currentTime)
+    })
+
+    -- SET WAYPOINT TO NEXT CHECKPOINT
+    local nextCheckpoint = activeRace.checkpoints[checkpointIndex + 1]
+    if nextCheckpoint and nextCheckpoint.node then
+      local nextPos = vec3(nextCheckpoint.node.x, nextCheckpoint.node.y, nextCheckpoint.node.z)
+      core_groundMarkers.setFocus(nextPos)
+      log("I", "Navigation set to checkpoint " .. (checkpointIndex + 1))
+    elseif activeRace.raceData.finish then
+      -- Next is finish line
+      local finishPos = activeRace.raceData.finish.pos
+      core_groundMarkers.setFocus(vec3(finishPos.x, finishPos.y, finishPos.z))
+      log("I", "Navigation set to finish line")
+    end
+  end
+end
+
+---------------------------------------------------------------------------
 -- Organized Race Management
 ---------------------------------------------------------------------------
 
-function M.startRace(raceId, betAmount)
+-- acceptRace: Called when user accepts a race from UI
+-- Spawns adversary and sets up checkpoints immediately
+-- Money is deducted when player reaches start line
+function M.acceptRace(raceId, betAmount, adversaryName, adversaryModel)
   if activeRace.state ~= RACE_STATE.IDLE then
     return false, "Already in a race"
   end
@@ -469,40 +747,65 @@ function M.startRace(raceId, betAmount)
     loadRaces()
   end
 
-  local raceData = loadedRaces[raceId]
-  if not raceData then
-    return false, "Race not found"
+  -- Validate bet amount
+  if betAmount < RACE_CONFIG.BET_MIN or betAmount > RACE_CONFIG.BET_MAX then
+    return false, "Bet must be between " .. formatMoney(RACE_CONFIG.BET_MIN) .. " and " .. formatMoney(RACE_CONFIG.BET_MAX)
   end
 
-  -- Place bet
-  local success, err = placeBet(betAmount, false, nil)
-  if not success then
-    return false, err
+  -- Check player has enough money (but don't deduct yet)
+  local playerMoney = getPlayerMoney()
+  if playerMoney < betAmount then
+    return false, "Not enough money"
   end
 
-  -- Set up race
+  -- Find track from dynamic race ID (e.g., "race01_2" → "race01")
+  local trackId = raceId:match("^(.+)_%d+$") or raceId
+  local trackData = loadedRaces[trackId]
+  if not trackData then
+    return false, "Track not found: " .. tostring(trackId)
+  end
+
+  -- Set up race in staging mode
   activeRace.state = RACE_STATE.STAGING
   activeRace.raceId = raceId
-  activeRace.raceName = raceData.name or raceId
-  activeRace.raceData = raceData
-  activeRace.checkpoints = raceData.checkpoints or {}
+  activeRace.trackId = trackId
+  activeRace.raceName = "vs " .. (adversaryName or "Unknown Racer")
+  activeRace.raceData = trackData
+  activeRace.betAmount = betAmount  -- Reserved, not deducted yet
+  activeRace.adversaryName = adversaryName
+  activeRace.adversaryModel = adversaryModel
+  activeRace.checkpoints = trackData.checkpoints or {}
   activeRace.currentCheckpoint = 0
   activeRace.totalCheckpoints = #activeRace.checkpoints
   activeRace.splitTimes = {}
+  activeRace.countdownTime = 0
+  activeRace.lastCountdown = 0
 
-  -- TODO: Create GPS waypoint to start line
-  -- TODO: Create start line trigger
+  -- Set up visual checkpoints and triggers
+  raceCheckpoints.setupRace(trackData, trackId)
+  raceCheckpoints.setCheckpointCallback(onCheckpointHit)
+  raceCheckpoints.showCheckpoints(0)  -- Show first checkpoint (start line)
 
-  log("I", "Race started: " .. activeRace.raceName .. " with bet " .. formatMoney(betAmount))
+  -- Spawn adversary vehicle at start line (waiting)
+  spawnAdversary()
 
-  -- Send UI update
-  guihooks.trigger('toastrMsg', {
-    type = "info",
-    title = "Race Started",
-    msg = "Drive to the starting line for " .. activeRace.raceName
-  })
+  -- Set waypoint to start line
+  setNavigationToStart(trackData)
+
+  -- Close UI
+  guihooks.trigger('MenuHide')
+
+  log("I", "Race accepted: " .. activeRace.raceName .. " with bet " .. formatMoney(betAmount))
+
+  -- Show message
+  ui_message("Drive to the starting line! Your opponent is waiting.", 5, "info")
 
   return true
+end
+
+-- Legacy alias for backwards compatibility
+function M.startRace(raceId, betAmount)
+  return M.acceptRace(raceId, betAmount)
 end
 
 function M.abandonRace()
@@ -519,35 +822,6 @@ function M.abandonRace()
   cleanupRace()
 
   return true
-end
-
-local function cleanupRace()
-  -- Remove triggers
-  for _, trigger in ipairs(activeRace.triggers) do
-    if trigger and trigger:isValid() then
-      trigger:delete()
-    end
-  end
-
-  -- Reset state
-  activeRace = {
-    state = RACE_STATE.IDLE,
-    raceId = nil,
-    raceName = nil,
-    raceData = nil,
-    betAmount = 0,
-    isPinkSlip = false,
-    playerCarInventoryId = nil,
-    checkpoints = {},
-    currentCheckpoint = 0,
-    totalCheckpoints = 0,
-    startTime = 0,
-    lastCheckpointTime = 0,
-    splitTimes = {},
-    triggers = {},
-    startTrigger = nil,
-    finishTrigger = nil
-  }
 end
 
 ---------------------------------------------------------------------------
@@ -843,7 +1117,79 @@ local function onUpdate(dtReal, dtSim, dtRaw)
   -- Only run in career mode
   if not career_career or not career_career.isActive() then return end
 
-  -- Try to spawn street encounter (night only)
+  ---------------------------------------------------------------------------
+  -- Organized Race: Start line detection (STAGING state)
+  ---------------------------------------------------------------------------
+  if activeRace.state == RACE_STATE.STAGING then
+    local playerPos = getPlayerPos()
+    local startPos = activeRace.raceData and activeRace.raceData.start and activeRace.raceData.start.pos
+    if playerPos and startPos then
+      local dist = playerPos:distance(vec3(startPos.x, startPos.y, startPos.z))
+      if dist < 15 then  -- Within 15m of start line
+        -- NOW deduct money
+        deductBet(activeRace.betAmount)
+
+        -- Adversary already spawned at accept time
+        -- Start countdown
+        activeRace.state = RACE_STATE.COUNTDOWN
+        activeRace.countdownTime = RACE_CONFIG.COUNTDOWN_SECONDS
+        activeRace.lastCountdown = RACE_CONFIG.COUNTDOWN_SECONDS + 1
+
+        -- Clear navigation waypoint
+        M.clearNavigation()
+
+        log("I", "Player reached start line - beginning countdown")
+      end
+    end
+  end
+
+  ---------------------------------------------------------------------------
+  -- Organized Race: Countdown (COUNTDOWN state)
+  ---------------------------------------------------------------------------
+  if activeRace.state == RACE_STATE.COUNTDOWN then
+    activeRace.countdownTime = activeRace.countdownTime - dtSim
+    local countSec = math.ceil(activeRace.countdownTime)
+
+    -- Display countdown numbers (3, 2, 1)
+    if countSec > 0 and countSec ~= activeRace.lastCountdown then
+      activeRace.lastCountdown = countSec
+      guihooks.trigger('toastrMsg', {
+        type = "warning",
+        title = tostring(countSec),
+        msg = ""
+      })
+      log("I", "Countdown: " .. countSec)
+    elseif activeRace.countdownTime <= 0 then
+      -- GO!
+      activeRace.state = RACE_STATE.RACING
+      activeRace.startTime = os.clock()
+
+      guihooks.trigger('toastrMsg', {
+        type = "success",
+        title = "GO!",
+        msg = "Race to the finish!"
+      })
+
+      -- Start AI adversary racing along the track
+      startAdversaryRacing()
+
+      -- Show first checkpoint after start
+      raceCheckpoints.showCheckpoints(1)
+
+      -- SET WAYPOINT TO FIRST CHECKPOINT
+      if activeRace.checkpoints[1] and activeRace.checkpoints[1].node then
+        local cp1 = activeRace.checkpoints[1].node
+        core_groundMarkers.setFocus(vec3(cp1.x, cp1.y, cp1.z))
+        log("I", "Navigation set to first checkpoint")
+      end
+
+      log("I", "Race started!")
+    end
+  end
+
+  ---------------------------------------------------------------------------
+  -- Street Encounters: Spawn (at night)
+  ---------------------------------------------------------------------------
   if encounter.state == ENCOUNTER_STATE.NONE and activeRace.state == RACE_STATE.IDLE then
     spawnStreetRacer()
   end
@@ -871,7 +1217,7 @@ local function onUpdate(dtReal, dtSim, dtRaw)
     end
   end
 
-  -- Handle countdown
+  -- Handle encounter countdown
   if encounter.state == ENCOUNTER_STATE.COUNTDOWN then
     encounter.countdownTime = encounter.countdownTime - dtSim
     if encounter.countdownTime <= 0 then
@@ -914,6 +1260,12 @@ local function onCareerModulesActivated()
   loadRaces()
 end
 
+-- Handle trigger events for checkpoint detection
+local function onBeamNGTrigger(data)
+  -- Forward to checkpoint manager
+  raceCheckpoints.onTrigger(data)
+end
+
 ---------------------------------------------------------------------------
 -- Module Exports
 ---------------------------------------------------------------------------
@@ -922,11 +1274,13 @@ M.onUpdate = onUpdate
 M.onExtensionLoaded = onExtensionLoaded
 M.onExtensionUnloaded = onExtensionUnloaded
 M.onCareerModulesActivated = onCareerModulesActivated
+M.onBeamNGTrigger = onBeamNGTrigger
 
 -- Public API
 M.loadRaces = M.loadRaces
 M.getRacesForUI = M.getRacesForUI
-M.startRace = M.startRace
+M.acceptRace = M.acceptRace
+M.startRace = M.startRace  -- Legacy alias
 M.abandonRace = M.abandonRace
 M.getActiveEncounter = M.getActiveEncounter
 M.challengeEncounter = M.challengeEncounter
