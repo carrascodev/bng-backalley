@@ -455,21 +455,34 @@ local function deductBet(amount)
 end
 
 local function spawnAdversary()
-  if not activeRace.raceData or not activeRace.raceData.start then
+  if not activeRace.raceData then
     log("W", "Cannot spawn adversary - no race data")
     return false
   end
 
-  local startPos = activeRace.raceData.start.pos
-  local startRot = activeRace.raceData.start.rot
   local model = activeRace.adversaryModel or RACER_VEHICLES[math.random(#RACER_VEHICLES)]
+  local spawnPos, rotation
 
-  -- Calculate spawn position: offset 4m to the RIGHT based on rotation
-  local rotation = startRot and quat(startRot.x, startRot.y, startRot.z, startRot.w) or quat(0, 0, 0, 1)
-  local basePos = vec3(startPos.x, startPos.y, startPos.z)
-  -- Use rotation to find the "right" direction (perpendicular to facing)
-  local rightVector = rotation * vec3(4, 0, 0)  -- 4m to the right
-  local spawnPos = basePos + rightVector
+  -- Check for new spawn format (from Race Editor UI)
+  if activeRace.raceData.spawns and activeRace.raceData.spawns.adversaries and #activeRace.raceData.spawns.adversaries > 0 then
+    -- Use first adversary spawn position from editor
+    local advSpawn = activeRace.raceData.spawns.adversaries[1]
+    spawnPos = vec3(advSpawn.pos.x, advSpawn.pos.y, advSpawn.pos.z)
+    rotation = advSpawn.rot and quat(advSpawn.rot.x, advSpawn.rot.y, advSpawn.rot.z, advSpawn.rot.w) or quat(0, 0, 0, 1)
+    log("I", "Using editor spawn position for adversary")
+  elseif activeRace.raceData.start then
+    -- Fallback: calculate position 4m to the right of start line (legacy behavior)
+    local startPos = activeRace.raceData.start.pos
+    local startRot = activeRace.raceData.start.rot
+    rotation = startRot and quat(startRot.x, startRot.y, startRot.z, startRot.w) or quat(0, 0, 0, 1)
+    local basePos = vec3(startPos.x, startPos.y, startPos.z)
+    local rightVector = rotation * vec3(4, 0, 0)
+    spawnPos = basePos + rightVector
+    log("I", "Using calculated spawn position (4m offset)")
+  else
+    log("W", "Cannot spawn adversary - no spawn position available")
+    return false
+  end
 
   -- Build spawn options
   local spawnOptions = {
@@ -499,23 +512,35 @@ local function spawnAdversary()
   end
 end
 
--- Start AI racing towards finish line using checkpoint path
+-- Forward declaration for fallback
+local startAdversaryRacingFallback
+
+-- Start AI racing towards finish line using road-aware pathfinding
 local function startAdversaryRacing()
-  if not activeRace.adversaryVehId then 
+  if not activeRace.adversaryVehId then
     log("E", "No adversary vehicle to start racing")
+    return
   end
 
   local advVeh = be:getObjectByID(activeRace.adversaryVehId)
   if not advVeh then return end
 
-  -- Build waypoint list from checkpoints
-  local waypoints = {}
+  -- Convert checkpoint coordinates to nearest road waypoint names
+  -- This gives us proper road-aware AI pathfinding via BeamNG's navigation system
+  local waypointNames = {}
 
   -- Add all checkpoints
   if activeRace.raceData.checkpoints then
     for _, cp in ipairs(activeRace.raceData.checkpoints) do
       if cp.node then
-        table.insert(waypoints, {cp.node.x, cp.node.y, cp.node.z})
+        local pos = vec3(cp.node.x, cp.node.y, cp.node.z)
+        local wpName, _, dist = map.findClosestRoad(pos)
+        if wpName and dist < 50 then  -- Only use if within 50m of a road
+          table.insert(waypointNames, wpName)
+          log("I", string.format("Checkpoint -> waypoint '%s' (%.1fm away)", wpName, dist))
+        else
+          log("W", string.format("No road found near checkpoint (%.1f, %.1f, %.1f)", cp.node.x, cp.node.y, cp.node.z))
+        end
       end
     end
   end
@@ -523,42 +548,76 @@ local function startAdversaryRacing()
   -- Add finish position
   if activeRace.raceData.finish and activeRace.raceData.finish.pos then
     local fp = activeRace.raceData.finish.pos
-    table.insert(waypoints, {fp.x, fp.y, fp.z})
+    local pos = vec3(fp.x, fp.y, fp.z)
+    local wpName, _, dist = map.findClosestRoad(pos)
+    if wpName and dist < 50 then
+      table.insert(waypointNames, wpName)
+      log("I", string.format("Finish -> waypoint '%s' (%.1fm away)", wpName, dist))
+    end
   end
 
-  if #waypoints == 0 then
-    log("W", "No waypoints for AI")
+  if #waypointNames == 0 then
+    log("W", "No road waypoints found for AI - falling back to direct coordinates")
+    -- Fallback: try script mode with coordinates (will teleport but at least works)
+    startAdversaryRacingFallback()
     return
   end
 
-  -- Serialize waypoints as vec3 table
-  local wpStrings = {}
-  for _, wp in ipairs(waypoints) do
-    table.insert(wpStrings, string.format("vec3(%f,%f,%f)", wp[1], wp[2], wp[3]))
-  end
-  local wpListStr = "{" .. table.concat(wpStrings, ",") .. "}"
+  -- Build waypoint list string for AI command
+  local wpListStr = '{"' .. table.concat(waypointNames, '","') .. '"}'
 
-  -- CRITICAL: Enable racing mode FIRST (based on carmeets.lua pattern)
+  -- Set up AI for racing with road-aware pathfinding
+  -- Uses wpTargetList which follows roads between waypoints
   advVeh:queueLuaCommand('ai.setMode("manual")')
   advVeh:queueLuaCommand('ai.setRacing(true)')
   advVeh:queueLuaCommand('ai.driveInLane("on")')
-  advVeh:queueLuaCommand('ai.setAggression(0.9)')
+  advVeh:queueLuaCommand('ai.setAggression(0.8)')
 
-  -- Then set the path with racing parameters
   local aiCmd = string.format([[
     ai.driveUsingPath({
       wpTargetList = %s,
-      noOfLaps = 1,
-      aggression = 0.9,
-      avoidCars = "off",
-      routeSpeed = 250,
-      routeSpeedMode = "limit"
+      driveInLane = "on",
+      aggression = 0.8
     })
   ]], wpListStr)
 
   advVeh:queueLuaCommand(aiCmd)
 
-  log("I", "Adversary AI started racing with " .. #waypoints .. " waypoints")
+  log("I", "Adversary AI started racing with " .. #waypointNames .. " road waypoints")
+end
+
+-- Fallback: Use script mode if no road waypoints found (will teleport to first point)
+startAdversaryRacingFallback = function()
+  local advVeh = be:getObjectByID(activeRace.adversaryVehId)
+  if not advVeh then return end
+
+  local scriptWaypoints = {}
+
+  if activeRace.raceData.checkpoints then
+    for _, cp in ipairs(activeRace.raceData.checkpoints) do
+      if cp.node then
+        table.insert(scriptWaypoints, {x = cp.node.x, y = cp.node.y, z = cp.node.z})
+      end
+    end
+  end
+
+  if activeRace.raceData.finish and activeRace.raceData.finish.pos then
+    local fp = activeRace.raceData.finish.pos
+    table.insert(scriptWaypoints, {x = fp.x, y = fp.y, z = fp.z})
+  end
+
+  if #scriptWaypoints == 0 then return end
+
+  local wpStrings = {}
+  for _, wp in ipairs(scriptWaypoints) do
+    table.insert(wpStrings, string.format("{x=%f,y=%f,z=%f}", wp.x, wp.y, wp.z))
+  end
+  local scriptStr = "{" .. table.concat(wpStrings, ",") .. "}"
+
+  advVeh:queueLuaCommand('ai.setMode("manual")')
+  advVeh:queueLuaCommand(string.format('ai.driveUsingPath({script = %s, aggression = 0.7})', scriptStr))
+
+  log("W", "Using fallback script mode (AI may teleport)")
 end
 
 local function placeBet(amount, isPinkSlip, inventoryId)
@@ -1238,6 +1297,134 @@ local function onUpdate(dtReal, dtSim, dtRaw)
       })
     end
   end
+end
+
+---------------------------------------------------------------------------
+-- Debug Functions
+---------------------------------------------------------------------------
+
+-- Teleport player vehicle to race start position
+local function teleportPlayerToStart(raceData)
+  local playerVeh = be:getPlayerVehicle(0)
+  if not playerVeh then
+    log("E", "No player vehicle for teleport")
+    return false
+  end
+
+  local startPos, startRot
+
+  -- Check for new spawn format (from Race Editor UI)
+  if raceData.spawns and raceData.spawns.player then
+    startPos = raceData.spawns.player.pos
+    startRot = raceData.spawns.player.rot
+    log("I", "Using editor spawn position for player")
+  elseif raceData.start then
+    -- Fallback to legacy format
+    startPos = raceData.start.pos
+    startRot = raceData.start.rot
+    log("I", "Using legacy start position for player")
+  end
+
+  if not startPos then
+    log("E", "Race has no start position")
+    return false
+  end
+
+  -- Build position and rotation
+  local pos = vec3(startPos.x, startPos.y, startPos.z)
+  local rot = startRot and quat(startRot.x, startRot.y, startRot.z, startRot.w) or quat(0, 0, 0, 1)
+
+  -- Use spawn.safeTeleport if available, otherwise direct set
+  if spawn and spawn.safeTeleport then
+    spawn.safeTeleport(playerVeh, pos, rot, nil, nil, nil, true)
+  else
+    playerVeh:setPositionRotation(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w)
+  end
+
+  log("I", string.format("Player teleported to start: (%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z))
+  return true
+end
+
+-- Debug function to start a race immediately (bypasses betting, teleports player)
+-- Usage: carTheft_streetRacing.debugStartRace("race01", "covet")
+function M.debugStartRace(trackId, vehicleModel)
+  -- Default to covet if no model specified
+  vehicleModel = vehicleModel or "covet"
+
+  -- Ensure races are loaded
+  if not racesLoaded then
+    loadRaces()
+  end
+
+  -- Get track data
+  local trackData = loadedRaces[trackId]
+  if not trackData then
+    log("E", "Track not found: " .. tostring(trackId))
+    ui_message("Track not found: " .. tostring(trackId), 5, "error")
+    return false, "Track not found"
+  end
+
+  -- Cleanup any existing race
+  if activeRace.state ~= RACE_STATE.IDLE then
+    cleanupRace()
+  end
+
+  -- Set up race state (bypassing betting)
+  activeRace.state = RACE_STATE.STAGING
+  activeRace.raceId = trackId .. "_debug"
+  activeRace.trackId = trackId
+  activeRace.raceName = "Debug Race"
+  activeRace.raceData = trackData
+  activeRace.betAmount = 0  -- No betting in debug mode
+  activeRace.adversaryName = "Debug Opponent"
+  activeRace.adversaryModel = vehicleModel
+  activeRace.checkpoints = trackData.checkpoints or {}
+  activeRace.currentCheckpoint = 0
+  activeRace.totalCheckpoints = #activeRace.checkpoints
+  activeRace.splitTimes = {}
+
+  -- Set up visual checkpoints and triggers
+  raceCheckpoints.setupRace(trackData, trackId)
+  raceCheckpoints.setCheckpointCallback(onCheckpointHit)
+
+  -- Teleport player to start line
+  if not teleportPlayerToStart(trackData) then
+    cleanupRace()
+    return false, "Failed to teleport player"
+  end
+
+  -- Spawn adversary vehicle
+  if not spawnAdversary() then
+    log("W", "Failed to spawn adversary, continuing without opponent")
+  end
+
+  -- Skip staging, go directly to countdown
+  activeRace.state = RACE_STATE.COUNTDOWN
+  activeRace.countdownTime = RACE_CONFIG.COUNTDOWN_SECONDS
+  activeRace.lastCountdown = RACE_CONFIG.COUNTDOWN_SECONDS + 1
+
+  -- Show first checkpoint
+  raceCheckpoints.showCheckpoints(0)
+
+  log("I", "Debug race started: " .. trackId .. " with " .. vehicleModel)
+  ui_message("Debug race starting! 3... 2... 1...", 3, "info")
+
+  return true
+end
+
+-- List available tracks for debugging
+function M.debugListTracks()
+  if not racesLoaded then
+    loadRaces()
+  end
+
+  log("I", "Available tracks:")
+  for id, track in pairs(loadedRaces) do
+    local checkpointCount = track.checkpoints and #track.checkpoints or 0
+    log("I", string.format("  - %s: %s (%d checkpoints)", id, track.name or id, checkpointCount))
+  end
+
+  return loadedRaces
 end
 
 ---------------------------------------------------------------------------

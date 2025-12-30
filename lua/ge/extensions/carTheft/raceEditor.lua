@@ -94,8 +94,8 @@ local function getPlayerRot()
   if playerVehId then
     local veh = be:getObjectByID(playerVehId)
     if veh then
-      -- Get rotation directly from vehicle
-      local rot = veh:getRotation()
+      -- Use quatFromDir with direction vectors for correct orientation
+      local rot = quatFromDir(veh:getDirectionVector(), veh:getDirectionVectorUp())
       if rot then
         return rot
       end

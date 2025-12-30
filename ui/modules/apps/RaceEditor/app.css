@@ -1,0 +1,569 @@
+/* Race Editor - Local CSS */
+
+.race-editor-app {
+  background: rgba(0, 0, 0, 0.92) !important;
+  color: #ffffff !important;
+  padding: 12px !important;
+  border-radius: 8px !important;
+  font-family: 'Roboto', 'Segoe UI', Arial, sans-serif !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Force all text white */
+.race-editor-app * {
+  color: #ffffff !important;
+  box-sizing: border-box !important;
+}
+
+/* Header */
+.re-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding-bottom: 10px !important;
+  margin-bottom: 10px !important;
+  border-bottom: 2px solid #ff6600 !important;
+}
+
+.re-header h3 {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1px !important;
+}
+
+.re-toggle {
+  padding: 6px 16px !important;
+  background: rgba(100, 100, 100, 0.5) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+}
+
+.re-toggle:hover {
+  background: rgba(120, 120, 120, 0.6) !important;
+}
+
+.re-toggle.active {
+  background: rgba(0, 200, 100, 0.7) !important;
+  border-color: #00ff88 !important;
+}
+
+/* Content */
+.re-content {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  overflow-y: auto !important;
+}
+
+/* Card */
+.re-card {
+  background: rgba(40, 40, 50, 0.7) !important;
+  border-radius: 6px !important;
+  padding: 12px !important;
+}
+
+.re-card-label {
+  font-size: 11px !important;
+  opacity: 0.7 !important;
+  text-transform: uppercase !important;
+  margin-bottom: 6px !important;
+  letter-spacing: 0.5px !important;
+}
+
+/* Section Headers (collapsible) */
+.re-section-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+.re-collapse-icon {
+  font-size: 14px !important;
+  font-weight: bold !important;
+  opacity: 0.7 !important;
+  width: 20px !important;
+  text-align: center !important;
+}
+
+.re-section-content {
+  margin-top: 10px !important;
+}
+
+/* Track Selection */
+.re-track-row {
+  display: flex !important;
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+}
+
+.re-select {
+  flex: 1 !important;
+  padding: 8px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+}
+
+.re-select option {
+  background: #1a1a1a !important;
+  color: #ffffff !important;
+}
+
+.re-input {
+  flex: 1 !important;
+  padding: 8px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+}
+
+.re-input::placeholder {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.re-track-name {
+  font-size: 12px !important;
+  padding: 6px !important;
+  background: rgba(255, 102, 0, 0.15) !important;
+  border-left: 3px solid #ff6600 !important;
+  border-radius: 4px !important;
+}
+
+.re-track-name-edit {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px !important;
+  background: rgba(255, 102, 0, 0.15) !important;
+  border-left: 3px solid #ff6600 !important;
+  border-radius: 4px !important;
+}
+
+.re-label-small {
+  font-size: 11px !important;
+  opacity: 0.7 !important;
+  white-space: nowrap !important;
+}
+
+.re-input-name {
+  flex: 1 !important;
+  font-weight: 600 !important;
+}
+
+/* Subsections */
+.re-subsection {
+  margin-bottom: 12px !important;
+}
+
+.re-subsection:last-child {
+  margin-bottom: 0 !important;
+}
+
+.re-subsection-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 8px !important;
+}
+
+.re-label-player {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #00ff88 !important;
+}
+
+.re-label-adversary {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #ff4444 !important;
+}
+
+.re-label-finish {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #ffaa00 !important;
+}
+
+/* Spawn Items */
+.re-spawn-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 4px !important;
+  border-left: 3px solid transparent !important;
+  margin-bottom: 6px !important;
+}
+
+.re-spawn-item:last-child {
+  margin-bottom: 0 !important;
+}
+
+.re-spawn-player {
+  border-left-color: #00ff88 !important;
+}
+
+.re-spawn-adversary {
+  border-left-color: #ff4444 !important;
+}
+
+.re-spawn-finish {
+  border-left-color: #ffaa00 !important;
+}
+
+.re-spawn-info {
+  flex: 1 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.re-spawn-info:hover {
+  opacity: 0.8 !important;
+}
+
+.re-spawn-index {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #ff4444 !important;
+}
+
+.re-spawn-pos {
+  font-size: 11px !important;
+  font-family: monospace !important;
+}
+
+.re-spawn-rot {
+  font-size: 10px !important;
+  opacity: 0.6 !important;
+}
+
+.re-spawn-empty {
+  text-align: center !important;
+  padding: 12px !important;
+  opacity: 0.5 !important;
+  font-style: italic !important;
+  font-size: 11px !important;
+}
+
+/* Checkpoints */
+.re-checkpoint-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  max-height: 150px !important;
+  overflow-y: auto !important;
+  margin-top: 8px !important;
+}
+
+.re-checkpoint-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px 8px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 4px !important;
+  border-left: 3px solid #ffaa00 !important;
+}
+
+.re-checkpoint-info {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+}
+
+.re-checkpoint-info:hover {
+  opacity: 0.8 !important;
+}
+
+.re-checkpoint-index {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #ffaa00 !important;
+  min-width: 20px !important;
+}
+
+.re-checkpoint-pos {
+  font-size: 10px !important;
+  font-family: monospace !important;
+  opacity: 0.8 !important;
+}
+
+.re-checkpoint-width {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  font-size: 10px !important;
+}
+
+/* Settings */
+.re-setting-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 6px 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.re-setting-row:last-child {
+  border-bottom: none !important;
+}
+
+.re-setting-label {
+  font-size: 12px !important;
+  opacity: 0.8 !important;
+}
+
+.re-select-small {
+  padding: 4px 8px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+}
+
+.re-select-small option {
+  background: #1a1a1a !important;
+  color: #ffffff !important;
+}
+
+/* Buttons */
+.re-btn {
+  flex: 1 !important;
+  padding: 10px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 6px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+}
+
+.re-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.re-btn-small {
+  padding: 6px 12px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+}
+
+.re-btn-small:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.re-btn-set {
+  background: rgba(0, 150, 255, 0.3) !important;
+  border-color: rgba(0, 150, 255, 0.5) !important;
+}
+
+.re-btn-set:hover {
+  background: rgba(0, 150, 255, 0.5) !important;
+}
+
+.re-btn-add {
+  background: rgba(0, 200, 100, 0.3) !important;
+  border-color: rgba(0, 200, 100, 0.5) !important;
+}
+
+.re-btn-add:hover {
+  background: rgba(0, 200, 100, 0.5) !important;
+}
+
+.re-btn-icon {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+}
+
+.re-btn-icon:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.re-btn-danger:hover {
+  background: rgba(255, 68, 68, 0.4) !important;
+  border-color: #ff4444 !important;
+}
+
+.re-btn-danger-full {
+  background: rgba(255, 68, 68, 0.3) !important;
+  border-color: rgba(255, 68, 68, 0.5) !important;
+}
+
+.re-btn-danger-full:hover {
+  background: rgba(255, 68, 68, 0.5) !important;
+}
+
+.re-btn-secondary {
+  background: rgba(100, 100, 120, 0.3) !important;
+  border-color: rgba(150, 150, 170, 0.3) !important;
+}
+
+.re-btn-secondary:hover {
+  background: rgba(120, 120, 140, 0.4) !important;
+}
+
+.re-btn-preview {
+  background: rgba(100, 100, 255, 0.3) !important;
+  border-color: rgba(100, 100, 255, 0.5) !important;
+}
+
+.re-btn-preview:hover {
+  background: rgba(100, 100, 255, 0.5) !important;
+}
+
+.re-btn-simulate {
+  background: rgba(255, 170, 0, 0.3) !important;
+  border-color: rgba(255, 170, 0, 0.5) !important;
+}
+
+.re-btn-simulate:hover {
+  background: rgba(255, 170, 0, 0.5) !important;
+}
+
+.re-btn-save {
+  background: rgba(0, 200, 100, 0.3) !important;
+  border-color: rgba(0, 200, 100, 0.5) !important;
+}
+
+.re-btn-save:hover {
+  background: rgba(0, 200, 100, 0.5) !important;
+}
+
+.re-full-width {
+  width: 100% !important;
+}
+
+/* Input Small */
+.re-input-small {
+  width: 60px !important;
+  padding: 4px 6px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  text-align: center !important;
+}
+
+/* Action Buttons */
+.re-action-buttons {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+}
+
+.re-secondary-buttons {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 6px !important;
+}
+
+/* Inactive State */
+.re-inactive {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+.re-inactive-icon {
+  font-size: 48px !important;
+  margin-bottom: 16px !important;
+}
+
+.re-inactive h4 {
+  margin: 0 0 8px 0 !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+}
+
+.re-inactive p {
+  margin: 0 0 20px 0 !important;
+  opacity: 0.6 !important;
+  font-size: 13px !important;
+}
+
+.re-start {
+  padding: 12px 32px !important;
+  background: linear-gradient(135deg, #ff6600, #ff9900) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+}
+
+.re-start:hover {
+  background: linear-gradient(135deg, #ff7711, #ffaa11) !important;
+}
+
+/* Scrollbar */
+.re-content::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.re-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-radius: 3px !important;
+}
+
+.re-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-radius: 3px !important;
+}
+
+.re-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5) !important;
+}
+
+.re-checkpoint-list::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+.re-checkpoint-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+
+.re-checkpoint-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 2px !important;
+}

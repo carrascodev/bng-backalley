@@ -1550,6 +1550,8 @@ end
 M.reload = function()
   resetTheftJob()
   -- Reload all car theft modules
+  extensions.reload("carTheft_streetRacing")
+  extensions.reload("carTheft_raceEditorUI")
   extensions.reload("carTheft_jobManager")
   extensions.reload("carTheft_blackMarket")
   extensions.reload("carTheft_documentation")
