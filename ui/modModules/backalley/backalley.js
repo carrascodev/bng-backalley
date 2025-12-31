@@ -15,7 +15,8 @@ angular.module('beamng.stuff')
     { name: 'Hot Wheels', site: 'hotwheels', url: 'hotwheels.bally', icon: 'fire' },
     { name: 'My Rides', site: 'myrides', url: 'myrides.bally', icon: 'car' },
     { name: 'Black Market', site: 'blackmarket', url: 'blackmarket.bally', icon: 'cart' },
-    { name: 'Legit Docs', site: 'legitdocs', url: 'legitdocs.bally', icon: 'file' }
+    { name: 'Legit Docs', site: 'legitdocs', url: 'legitdocs.bally', icon: 'file' },
+    { name: 'Street Heat', site: 'streetheat', url: 'streetheat.bally', icon: 'race' }
   ];
 
   // Navigation
@@ -35,6 +36,8 @@ angular.module('beamng.stuff')
       $scope.loadBlackMarketData();
     } else if ($scope.currentSite === 'legitdocs') {
       $scope.loadLegitDocsData();
+    } else if ($scope.currentSite === 'streetheat') {
+      $scope.loadStreetHeatData();
     }
   };
 
@@ -438,6 +441,133 @@ angular.module('beamng.stuff')
     var tier = $scope.legitDocsData.tiers[tierName];
     if (!tier) return '?%';
     return Math.round(tier.detectChance * 100) + '%';
+  };
+
+  // =========================================================================
+  // Street Heat Site (Racing and Betting)
+  // =========================================================================
+  $scope.streetHeatData = {
+    races: [],
+    lostVehicles: [],
+    stats: {
+      racesWon: 0,
+      racesLost: 0,
+      totalWinnings: 0,
+      totalLosses: 0,
+      winRate: 0
+    },
+    loading: true,
+    view: 'races',
+    message: null
+  };
+
+  $scope.loadStreetHeatData = function() {
+    $scope.streetHeatData.loading = true;
+    $scope.streetHeatData.message = null;
+
+    // Load races
+    bngApi.engineLua("carTheft_streetRacing.getRacesForUI()", function(result) {
+      $scope.$evalAsync(function() {
+        $scope.streetHeatData.races = result || [];
+      });
+    });
+
+    // Load lost vehicles
+    bngApi.engineLua("carTheft_streetRacing.getLostVehicles()", function(result) {
+      $scope.$evalAsync(function() {
+        $scope.streetHeatData.lostVehicles = result || [];
+      });
+    });
+
+    // Load stats
+    bngApi.engineLua("carTheft_streetRacing.getStats()", function(result) {
+      $scope.$evalAsync(function() {
+        $scope.streetHeatData.stats = result || {
+          racesWon: 0,
+          racesLost: 0,
+          totalWinnings: 0,
+          totalLosses: 0,
+          winRate: 0
+        };
+        $scope.streetHeatData.loading = false;
+      });
+    });
+
+    $scope.loadPlayerMoney();
+  };
+
+  $scope.setStreetHeatView = function(view) {
+    $scope.streetHeatData.view = view;
+    $scope.streetHeatData.message = null;
+  };
+
+  // Accept a race - pass adversary info from dynamic race generation
+  $scope.startRace = function(race) {
+    if (!$scope.canAfford(race.selectedBet)) return;
+
+    // Call acceptRace with adversary info
+    var luaCall = 'carTheft_streetRacing.acceptRace("' + race.id + '", ' + race.selectedBet + ', "' + (race.adversaryName || '') + '", "' + (race.adversaryModel || '') + '")';
+
+    bngApi.engineLua(luaCall, function(result) {
+      $scope.$evalAsync(function() {
+        if (result && result[0]) {
+          // UI will be closed by Lua (guihooks.trigger('MenuHide'))
+          // But also close browser just in case
+          $scope.closeBrowser();
+        } else {
+          $scope.streetHeatData.message = {
+            type: 'error',
+            text: result ? result[1] : 'Failed to accept race'
+          };
+        }
+      });
+    });
+  };
+
+  // Buy back lost vehicle
+  $scope.buyBackVehicle = function(veh) {
+    if (!$scope.canAfford(veh.buybackPrice)) return;
+
+    bngApi.engineLua('carTheft_streetRacing.buyBackVehicle("' + veh.id + '")', function(result) {
+      $scope.$evalAsync(function() {
+        if (result && result[0]) {
+          $scope.streetHeatData.message = {
+            type: 'success',
+            text: 'Vehicle recovered: ' + veh.name
+          };
+        } else {
+          $scope.streetHeatData.message = {
+            type: 'error',
+            text: result ? result[1] : 'Failed to buy back vehicle'
+          };
+        }
+        $scope.loadStreetHeatData();
+      });
+    });
+  };
+
+  // Format race time (seconds to MM:SS.ss)
+  $scope.formatRaceTime = function(seconds) {
+    if (!seconds) return '--:--';
+    var mins = Math.floor(seconds / 60);
+    var secs = (seconds % 60).toFixed(2);
+    return mins + ':' + (secs < 10 ? '0' : '') + secs;
+  };
+
+  // Get difficulty stars
+  $scope.getRaceDifficultyStars = function(level) {
+    if (level === 1) return '\u2605';
+    if (level === 2) return '\u2605\u2605';
+    if (level === 3) return '\u2605\u2605\u2605';
+    return '\u2605';
+  };
+
+  // Get difficulty class for styling
+  $scope.getRaceDifficultyClass = function(level) {
+    if (level === 1) return 'difficulty-easy';
+    if (level === 2) return 'difficulty-medium';
+    if (level === 3) return 'difficulty-hard';
+    return 'difficulty-easy';
   };
 
   // =========================================================================

@@ -87,11 +87,25 @@ end
 -- Scene Tree
 ---------------------------------------------------------------------------
 
+local mockTodTime = 0.5  -- Default to noon
+
 _G.scenetree = {
   findObject = function(name)
     return nil  -- No objects by default
-  end
+  end,
+  tod = {
+    time = mockTodTime
+  }
 }
+
+M.setTimeOfDay = function(time)
+  mockTodTime = time
+  _G.scenetree.tod.time = time
+end
+
+M.getTimeOfDay = function()
+  return mockTodTime
+end
 
 ---------------------------------------------------------------------------
 -- Core Vehicles
@@ -115,11 +129,25 @@ _G.core_vehicles = {
 -- Core Ground Markers (GPS)
 ---------------------------------------------------------------------------
 
+local lastFocusPosition = nil
+
 _G.core_groundMarkers = {
   setPath = function(pos)
     return true
+  end,
+  setFocus = function(pos)
+    lastFocusPosition = pos
+    return true
   end
 }
+
+M.getLastFocusPosition = function()
+  return lastFocusPosition
+end
+
+M.clearFocusPosition = function()
+  lastFocusPosition = nil
+end
 
 ---------------------------------------------------------------------------
 -- Gameplay Modules
@@ -346,6 +374,94 @@ _G.freeroam_facilities = {
 }
 
 ---------------------------------------------------------------------------
+-- Mission / Level Info
+---------------------------------------------------------------------------
+
+local mockMapName = "west_coast_usa"
+
+_G.getMissionFilename = function()
+  return "/levels/" .. mockMapName .. "/main.level.json"
+end
+
+M.setMapName = function(name)
+  mockMapName = name
+end
+
+---------------------------------------------------------------------------
+-- File System Mocks
+---------------------------------------------------------------------------
+
+local mockFiles = {}
+
+_G.readFile = function(path)
+  return mockFiles[path]
+end
+
+_G.writeFile = function(path, content)
+  mockFiles[path] = content
+  return true
+end
+
+_G.jsonDecode = function(str)
+  -- Simple JSON decode for testing (use dkjson or similar in real tests)
+  -- For now, we'll use a very basic approach
+  local success, result = pcall(function()
+    -- This is a hack - in real tests use a proper JSON library
+    local func = load("return " .. str:gsub('"%s*:%s*', '"]='):gsub('{%s*"', '{["'):gsub(',%s*"', ',["'))
+    if func then return func() end
+    return nil
+  end)
+  if success then return result end
+  return nil
+end
+
+_G.jsonEncode = function(tbl)
+  -- Very simple JSON encode for testing
+  local function serialize(val)
+    local t = type(val)
+    if t == "table" then
+      local isArray = #val > 0
+      local parts = {}
+      if isArray then
+        for _, v in ipairs(val) do
+          table.insert(parts, serialize(v))
+        end
+        return "[" .. table.concat(parts, ",") .. "]"
+      else
+        for k, v in pairs(val) do
+          table.insert(parts, '"' .. tostring(k) .. '":' .. serialize(v))
+        end
+        return "{" .. table.concat(parts, ",") .. "}"
+      end
+    elseif t == "string" then
+      return '"' .. val .. '"'
+    elseif t == "number" then
+      return tostring(val)
+    elseif t == "boolean" then
+      return val and "true" or "false"
+    elseif t == "nil" then
+      return "null"
+    end
+    return '"' .. tostring(val) .. '"'
+  end
+  return serialize(tbl)
+end
+
+_G.tableSize = function(tbl)
+  local count = 0
+  for _ in pairs(tbl) do count = count + 1 end
+  return count
+end
+
+M.setMockFile = function(path, content)
+  mockFiles[path] = content
+end
+
+M.clearMockFiles = function()
+  mockFiles = {}
+end
+
+---------------------------------------------------------------------------
 -- Package/Require Override
 ---------------------------------------------------------------------------
 
@@ -382,6 +498,11 @@ M.resetAll = function()
   mockInventory = {}
   nextInventoryId = 100
   triggeredHooks = {}
+  mockTodTime = 0.5
+  _G.scenetree.tod.time = mockTodTime
+  mockMapName = "west_coast_usa"
+  lastFocusPosition = nil
+  M.clearMockFiles()
   M.clearModuleCache()
 end
 

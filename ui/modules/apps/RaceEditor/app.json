@@ -1,0 +1,14 @@
+{
+  "name": "Race Editor",
+  "author": "Claude Code",
+  "version": "1.0.0",
+  "description": "Visual race track editor with spawn positions and simulation testing",
+  "directive": "raceEditor",
+  "domElement": "<race-editor></race-editor>",
+  "css": {
+    "width": "380px",
+    "height": "650px",
+    "top": "60px",
+    "left": "60px"
+  }
+}

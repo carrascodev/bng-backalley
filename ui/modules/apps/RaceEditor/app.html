@@ -1,0 +1,209 @@
+<div class="race-editor-app">
+  <link rel="stylesheet" type="text/css" href="/ui/modules/apps/RaceEditor/app.css" />
+
+  <!-- Header -->
+  <div class="re-header">
+    <h3>RACE EDITOR</h3>
+    <button class="re-toggle" ng-class="{'active': editor.active}" ng-click="toggleEditing()">
+      {{ editor.active ? 'EDITING' : 'OFF' }}
+    </button>
+  </div>
+
+  <!-- Active State -->
+  <div class="re-content" ng-if="editor.active">
+
+    <!-- Track Selection -->
+    <div class="re-card">
+      <div class="re-card-label">TRACK</div>
+      <div class="re-track-row">
+        <md-select class="re-select" ng-model="editor.currentTrackId" ng-change="selectTrack()" placeholder="-- Select Track --">
+          <md-option ng-value="track.id" ng-repeat="track in trackList">{{ track.name }}</md-option>
+        </md-select>
+      </div>
+      <div class="re-track-row">
+        <input type="text" ng-model="editor.newTrackName" placeholder="New track name..." class="re-input" />
+        <button class="re-btn-small" ng-click="createNewTrack()">New</button>
+      </div>
+      <div ng-if="editor.currentTrackId" class="re-track-name-edit">
+        <span class="re-label-small">Name:</span>
+        <input type="text" ng-model="trackData.name" ng-change="updateTrackName()" class="re-input re-input-name" />
+      </div>
+    </div>
+
+    <!-- Spawn Positions Section -->
+    <div class="re-card" ng-if="editor.currentTrackId">
+      <div class="re-section-header" ng-click="ui.showSpawns = !ui.showSpawns">
+        <span class="re-card-label">SPAWN POSITIONS</span>
+        <span class="re-collapse-icon">{{ ui.showSpawns ? '-' : '+' }}</span>
+      </div>
+
+      <div ng-if="ui.showSpawns" class="re-section-content">
+        <!-- Start Line Position -->
+        <div class="re-subsection">
+          <div class="re-subsection-header">
+            <span class="re-label-player">Start Line</span>
+            <button class="re-btn-small re-btn-set" ng-click="setPlayerSpawn()">Set Current</button>
+          </div>
+          <div ng-if="trackData.spawns.player" class="re-spawn-item re-spawn-player">
+            <div class="re-spawn-info" ng-click="teleportToSpawn('player')">
+              <span class="re-spawn-pos">{{ formatPos(trackData.spawns.player.pos) }}</span>
+              <span class="re-spawn-rot">{{ formatRot(trackData.spawns.player.rot) }}</span>
+            </div>
+            <button class="re-btn-icon re-btn-danger" ng-click="clearPlayerSpawn()" title="Remove">X</button>
+          </div>
+          <div ng-if="!trackData.spawns.player" class="re-spawn-empty">
+            Drive to where countdown should trigger, then click "Set Current"
+          </div>
+        </div>
+
+        <!-- Adversary Spawns -->
+        <div class="re-subsection">
+          <div class="re-subsection-header">
+            <span class="re-label-adversary">Adversary Spawns ({{ trackData.spawns.adversaries.length }})</span>
+            <button class="re-btn-small re-btn-add" ng-click="addAdversarySpawn()">+ Add</button>
+          </div>
+          <div ng-repeat="adv in trackData.spawns.adversaries track by $index" class="re-spawn-item re-spawn-adversary">
+            <div class="re-spawn-info" ng-click="teleportToSpawn('adversary', $index)">
+              <span class="re-spawn-index">#{{ $index + 1 }}</span>
+              <span class="re-spawn-pos">{{ formatPos(adv.pos) }}</span>
+            </div>
+            <button class="re-btn-icon re-btn-danger" ng-click="removeAdversarySpawn($index)" title="Remove">X</button>
+          </div>
+          <div ng-if="trackData.spawns.adversaries.length === 0" class="re-spawn-empty">
+            No AI racers - drive to spawn position and click "+ Add"
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checkpoints Section -->
+    <div class="re-card" ng-if="editor.currentTrackId">
+      <div class="re-section-header" ng-click="ui.showCheckpoints = !ui.showCheckpoints">
+        <span class="re-card-label">CHECKPOINTS ({{ trackData.checkpoints.length }})</span>
+        <span class="re-collapse-icon">{{ ui.showCheckpoints ? '-' : '+' }}</span>
+      </div>
+
+      <div ng-if="ui.showCheckpoints" class="re-section-content">
+        <button class="re-btn-small re-btn-add re-full-width" ng-click="addCheckpoint()">+ Add Checkpoint</button>
+
+        <div class="re-checkpoint-list">
+          <div ng-repeat="cp in trackData.checkpoints track by $index" class="re-checkpoint-item">
+            <div class="re-checkpoint-info" ng-click="teleportToCheckpoint($index)">
+              <span class="re-checkpoint-index">{{ $index + 1 }}</span>
+              <span class="re-checkpoint-pos">{{ formatPos(cp.node) }}</span>
+            </div>
+            <div class="re-checkpoint-width">
+              <span>W:</span>
+              <input type="number" ng-model="cp.node.width" ng-change="setCheckpointWidth($index, cp.node.width)" class="re-input-small" min="5" max="50" />
+            </div>
+            <button class="re-btn-icon re-btn-danger" ng-click="removeCheckpoint($index)" title="Remove">X</button>
+          </div>
+        </div>
+
+        <div ng-if="trackData.checkpoints.length === 0" class="re-spawn-empty">
+          No checkpoints - drive along route and click "+ Add Checkpoint"
+        </div>
+      </div>
+    </div>
+
+    <!-- Finish Line Section -->
+    <div class="re-card" ng-if="editor.currentTrackId">
+      <div class="re-section-header" ng-click="ui.showFinish = !ui.showFinish">
+        <span class="re-card-label">FINISH LINE</span>
+        <span class="re-collapse-icon">{{ ui.showFinish ? '-' : '+' }}</span>
+      </div>
+
+      <div ng-if="ui.showFinish" class="re-section-content">
+        <div class="re-subsection-header">
+          <span class="re-label-finish">Finish Position</span>
+          <button class="re-btn-small re-btn-set" ng-click="setFinishLine()">Set Current</button>
+        </div>
+        <div ng-if="trackData.finish" class="re-spawn-item re-spawn-finish">
+          <div class="re-spawn-info" ng-click="teleportToFinish()">
+            <span class="re-spawn-pos">{{ formatPos(trackData.finish.pos) }}</span>
+            <span class="re-spawn-rot">{{ formatRot(trackData.finish.rot) }}</span>
+          </div>
+          <button class="re-btn-icon re-btn-danger" ng-click="clearFinishLine()" title="Remove">X</button>
+        </div>
+        <div ng-if="!trackData.finish" class="re-spawn-empty">
+          Not set - drive to finish position and click "Set Current"
+        </div>
+      </div>
+    </div>
+
+    <!-- Race Settings Section -->
+    <div class="re-card" ng-if="editor.currentTrackId">
+      <div class="re-section-header" ng-click="toggleSettings()">
+        <span class="re-card-label">RACE SETTINGS</span>
+        <span class="re-collapse-icon">{{ ui.showSettings ? '-' : '+' }}</span>
+      </div>
+
+      <div ng-if="ui.showSettings" class="re-section-content">
+        <div class="re-setting-row">
+          <span class="re-setting-label">Min Bet:</span>
+          <input type="number" ng-model="settings.minBet" ng-change="updateSettings()" class="re-input-small" min="100" step="100" />
+        </div>
+        <div class="re-setting-row">
+          <span class="re-setting-label">Max Bet:</span>
+          <input type="number" ng-model="settings.maxBet" ng-change="updateSettings()" class="re-input-small" min="1000" step="1000" />
+        </div>
+        <div class="re-setting-row">
+          <span class="re-setting-label">Difficulty:</span>
+          <md-select ng-model="settings.difficulty" ng-change="updateSettings()" class="re-select-small">
+            <md-option ng-value="1">Easy</md-option>
+            <md-option ng-value="2">Medium</md-option>
+            <md-option ng-value="3">Hard</md-option>
+          </md-select>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Waypoints Debug Section -->
+    <div class="re-card" ng-if="editor.currentTrackId">
+      <div class="re-section-header" ng-click="ui.showAIWaypoints = !ui.showAIWaypoints">
+        <span class="re-card-label">AI WAYPOINTS (DEBUG)</span>
+        <span class="re-collapse-icon">{{ ui.showAIWaypoints ? '-' : '+' }}</span>
+      </div>
+
+      <div ng-if="ui.showAIWaypoints" class="re-section-content">
+        <button class="re-btn-small re-btn-add re-full-width" ng-click="calculateAIWaypoints()">Calculate Waypoints</button>
+
+        <div class="re-checkpoint-list" ng-if="aiWaypoints.length > 0">
+          <div ng-repeat="wp in aiWaypoints track by $index" class="re-checkpoint-item">
+            <div class="re-checkpoint-info" ng-click="teleportToAIWaypoint($index)">
+              <span class="re-checkpoint-index" ng-class="{'re-wp-finish': wp.type === 'finish'}">{{ wp.type === 'finish' ? 'F' : wp.index }}</span>
+              <span class="re-checkpoint-pos">{{ wp.name }}</span>
+            </div>
+            <span class="re-wp-dist">{{ wp.dist.toFixed(1) }}m</span>
+          </div>
+        </div>
+
+        <div ng-if="aiWaypoints.length === 0" class="re-spawn-empty">
+          Click "Calculate Waypoints" to see AI path
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="re-action-buttons" ng-if="editor.currentTrackId">
+      <button class="re-btn re-btn-preview" ng-click="previewRoute()">Preview</button>
+      <button class="re-btn re-btn-simulate" ng-click="simulate()">Simulate</button>
+      <button class="re-btn re-btn-save" ng-click="saveTrack()">Save</button>
+    </div>
+
+    <div class="re-secondary-buttons" ng-if="editor.currentTrackId">
+      <button class="re-btn-small re-btn-secondary" ng-click="clearMarkers()">Clear Markers</button>
+      <button class="re-btn-small re-btn-danger-full" ng-click="deleteTrack()">Delete Track</button>
+    </div>
+
+  </div>
+
+  <!-- Inactive State -->
+  <div class="re-inactive" ng-if="!editor.active">
+    <div class="re-inactive-icon">[ ]</div>
+    <h4>Race Editor</h4>
+    <p>Create and edit race tracks with spawn positions</p>
+    <button class="re-start" ng-click="toggleEditing()">START EDITING</button>
+  </div>
+
+</div>
