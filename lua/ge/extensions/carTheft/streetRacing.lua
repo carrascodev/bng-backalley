@@ -120,7 +120,11 @@ local activeRace = {
   -- Triggers (BeamNGTrigger objects)
   triggers = {},
   startTrigger = nil,
-  finishTrigger = nil
+  finishTrigger = nil,
+
+  -- Adversary finish tracking
+  adversaryFinished = false,
+  adversaryFinishTime = 0
 }
 
 -- Street encounter state
@@ -419,10 +423,10 @@ end
 ---------------------------------------------------------------------------
 
 local function deductBet(amount)
-  if career_modules_playerAttributes and career_modules_playerAttributes.addAttribute then
-    career_modules_playerAttributes.addAttribute("money", -amount, {
-      label = "Street Racing Bet",
-      tags = {"gameplay", "streetRacing", "bet"}
+  if career_modules_playerAttributes and career_modules_playerAttributes.addAttributes then
+    career_modules_playerAttributes.addAttributes({money = -amount}, {
+      tags = {"gameplay", "streetRacing", "bet"},
+      label = "Street Racing Bet"
     })
   end
   log("I", "Bet deducted: " .. formatMoney(amount))
@@ -504,8 +508,17 @@ local function startAdversaryRacing()
   local advVeh = be:getObjectByID(activeRace.adversaryVehId)
   if not advVeh then return end
 
+  -- Get adversary's current position as starting waypoint
+  local advPos = advVeh:getPosition()
+  local startWp = map.findClosestRoad(advPos)
+  if not startWp then
+    log("E", "Could not find road near adversary")
+    startAdversaryRacingFallback()
+    return
+  end
+
   -- Convert checkpoint coordinates to nearest road waypoint names
-  local waypointNames = {}
+  local targetWaypoints = {}
 
   -- Add all checkpoints
   if activeRace.raceData.checkpoints then
@@ -514,10 +527,8 @@ local function startAdversaryRacing()
         local pos = vec3(cp.node.x, cp.node.y, cp.node.z)
         local wpName, _, dist = map.findClosestRoad(pos)
         if wpName and dist < 50 then
-          table.insert(waypointNames, wpName)
+          table.insert(targetWaypoints, wpName)
           log("I", string.format("Checkpoint -> waypoint '%s' (%.1fm away)", wpName, dist))
-        else
-          log("W", string.format("No road found near checkpoint (%.1f, %.1f, %.1f)", cp.node.x, cp.node.y, cp.node.z))
         end
       end
     end
@@ -529,37 +540,69 @@ local function startAdversaryRacing()
     local pos = vec3(fp.x, fp.y, fp.z)
     local wpName, _, dist = map.findClosestRoad(pos)
     if wpName and dist < 50 then
-      table.insert(waypointNames, wpName)
+      table.insert(targetWaypoints, wpName)
       log("I", string.format("Finish -> waypoint '%s' (%.1fm away)", wpName, dist))
     end
   end
 
-  if #waypointNames == 0 then
+  if #targetWaypoints == 0 then
     log("W", "No road waypoints found for AI - falling back to direct coordinates")
     startAdversaryRacingFallback()
     return
   end
 
-  -- Build waypoint list string for AI command
-  local wpListStr = '{"' .. table.concat(waypointNames, '","') .. '"}'
+  -- Build complete path by connecting each waypoint pair
+  -- This ensures AI follows the exact road sequence, not "shortest path"
+  local fullPath = {}
+  local currentWp = startWp
+
+  for _, targetWp in ipairs(targetWaypoints) do
+    if currentWp ~= targetWp then
+      -- Get path from current to target (dirMult=1000 to prefer legal direction)
+      local segment = map.getPath(currentWp, targetWp, 0, 1000)
+      if segment and #segment > 0 then
+        -- Add segment to full path (skip first node if not first segment to avoid duplicates)
+        local startIdx = (#fullPath > 0) and 2 or 1
+        for i = startIdx, #segment do
+          table.insert(fullPath, segment[i])
+        end
+        currentWp = targetWp
+      else
+        log("W", string.format("No path from '%s' to '%s'", currentWp, targetWp))
+      end
+    end
+  end
+
+  if #fullPath == 0 then
+    log("W", "Could not build path - falling back")
+    startAdversaryRacingFallback()
+    return
+  end
+
+  -- Build path string for AI command
+  local pathStr = '{"' .. table.concat(fullPath, '","') .. '"}'
+
+  -- Get start and finish waypoints for wpTargetList
+  local finishWp = targetWaypoints[#targetWaypoints]
+  local wpTargetStr = string.format('{"%s", "%s"}', startWp, finishWp)
 
   -- Set up AI for racing
   advVeh:queueLuaCommand('ai.setMode("manual")')
-  advVeh:queueLuaCommand('ai.setRacing(true)')
-  advVeh:queueLuaCommand('ai.driveInLane("on")')
-  advVeh:queueLuaCommand('ai.setAggression(0.8)')
 
+  -- Use both path AND wpTargetList (start/finish markers)
   local aiCmd = string.format([[
     ai.driveUsingPath({
+      path = %s,
       wpTargetList = %s,
-      driveInLane = "on",
-      aggression = 0.8
+      driveInLane = "off",
+      avoidCars = "on",
+      aggression = 1
     })
-  ]], wpListStr)
+  ]], pathStr, wpTargetStr)
 
   advVeh:queueLuaCommand(aiCmd)
 
-  log("I", "Adversary AI started racing with " .. #waypointNames .. " road waypoints")
+  log("I", string.format("Adversary AI: %d path nodes, wpTargetList: %s -> %s", #fullPath, startWp, finishWp))
 end
 
 -- Fallback: Use script mode if no road waypoints found
@@ -620,10 +663,10 @@ end
 local function payout(won, amount)
   if won then
     local winnings = amount or (activeRace.betAmount * RACE_CONFIG.WIN_MULTIPLIER)
-    if career_modules_playerAttributes and career_modules_playerAttributes.addAttribute then
-      career_modules_playerAttributes.addAttribute("money", winnings, {
-        label = "Street Racing Winnings",
-        tags = {"gameplay", "streetRacing", "winnings"}
+    if career_modules_playerAttributes and career_modules_playerAttributes.addAttributes then
+      career_modules_playerAttributes.addAttributes({money = winnings}, {
+        tags = {"gameplay", "streetRacing", "winnings"},
+        label = "Street Racing Winnings"
       })
     end
     stats.racesWon = stats.racesWon + 1
@@ -687,7 +730,9 @@ local function cleanupRace()
     lastCountdown = 0,
     triggers = {},
     startTrigger = nil,
-    finishTrigger = nil
+    finishTrigger = nil,
+    adversaryFinished = false,
+    adversaryFinishTime = 0
   }
 end
 
@@ -714,9 +759,14 @@ local function onCheckpointHit(checkpointIndex, totalCheckpoints, isFinish)
     activeRace.state = RACE_STATE.FINISHED
     local raceTime = currentTime
 
-    -- Check if we beat the adversary (simple: player always wins for now)
-    -- TODO: Actually track adversary position
-    local won = true
+    -- Check if adversary already crossed finish line
+    local won = not activeRace.adversaryFinished
+    if won then
+      log("I", string.format("Player won! Time: %.2fs", raceTime))
+    else
+      log("I", string.format("Adversary finished first! Their time: %.2fs, Player time: %.2fs",
+        activeRace.adversaryFinishTime, raceTime))
+    end
 
     if won then
       payout(true)
@@ -1075,10 +1125,10 @@ function M.buyBackVehicle(vehicleId)
       end
 
       -- Deduct money
-      if career_modules_playerAttributes and career_modules_playerAttributes.addAttribute then
-        career_modules_playerAttributes.addAttribute("money", -buybackPrice, {
-          label = "Vehicle Buyback",
-          tags = {"gameplay", "streetRacing", "buyback"}
+      if career_modules_playerAttributes and career_modules_playerAttributes.addAttributes then
+        career_modules_playerAttributes.addAttributes({money = -buybackPrice}, {
+          tags = {"gameplay", "streetRacing", "buyback"},
+          label = "Vehicle Buyback"
         })
       end
 
@@ -1223,6 +1273,28 @@ local function onUpdate(dtReal, dtSim, dtRaw)
   end
 
   ---------------------------------------------------------------------------
+  -- Organized Race: Track adversary during race
+  ---------------------------------------------------------------------------
+  if activeRace.state == RACE_STATE.RACING and not activeRace.adversaryFinished then
+    if activeRace.adversaryVehId and activeRace.raceData.finish then
+      local advVeh = be:getObjectByID(activeRace.adversaryVehId)
+      if advVeh then
+        local advPos = advVeh:getPosition()
+        local finishPos = activeRace.raceData.finish.pos
+        local finishVec = vec3(finishPos.x, finishPos.y, finishPos.z)
+        local distToFinish = advPos:distance(finishVec)
+
+        -- Adversary crossed finish line (within 15m)
+        if distToFinish < 15 then
+          activeRace.adversaryFinished = true
+          activeRace.adversaryFinishTime = os.clock() - activeRace.startTime
+          log("I", string.format("Adversary finished! Time: %.2fs", activeRace.adversaryFinishTime))
+        end
+      end
+    end
+  end
+
+  ---------------------------------------------------------------------------
   -- Street Encounters: Spawn (at night)
   ---------------------------------------------------------------------------
   if encounter.state == ENCOUNTER_STATE.NONE and activeRace.state == RACE_STATE.IDLE then
@@ -1351,7 +1423,7 @@ function M.debugStartRace(trackId, vehicleModel)
   activeRace.trackId = trackId
   activeRace.raceName = "Debug Race"
   activeRace.raceData = trackData
-  activeRace.betAmount = 0  -- No betting in debug mode
+  activeRace.betAmount = 5000  -- Test bet amount for debug mode
   activeRace.adversaryName = "Debug Opponent"
   activeRace.adversaryModel = vehicleModel
   activeRace.checkpoints = trackData.checkpoints or {}
