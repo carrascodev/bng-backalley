@@ -249,38 +249,8 @@ end
 -- Race Data Loading
 ---------------------------------------------------------------------------
 
-local function getUserRacesPath()
-  -- User's BeamNG settings folder (persists across mod updates)
+local function getRacesPath()
   return "settings/" .. RACES_FILENAME
-end
-
-local function getDefaultRacesPath()
-  -- Bundled default in mod folder (deployed with mod)
-  return "car_theft_career/settings/" .. RACES_FILENAME
-end
-
-local function copyDefaultToUserIfNeeded()
-  local userPath = getUserRacesPath()
-  local defaultPath = getDefaultRacesPath()
-
-  -- Check if user file already exists
-  if readFile(userPath) then
-    return -- User already has a file, don't override
-  end
-
-  -- Read default from mod
-  local defaultContent = readFile(defaultPath)
-  if not defaultContent then
-    log("I", "No default races file to copy")
-    return
-  end
-
-  -- Copy default to user path
-  if writeFile(userPath, defaultContent) then
-    log("I", "Copied default races to user settings: " .. userPath)
-  else
-    log("W", "Failed to copy default races to user settings")
-  end
 end
 
 local function loadRaces()
@@ -291,15 +261,11 @@ local function loadRaces()
     return
   end
 
-  -- Copy default to user folder if user doesn't have one yet
-  copyDefaultToUserIfNeeded()
-
-  -- Load from user path (should exist now)
-  local userPath = getUserRacesPath()
-  local content = readFile(userPath)
+  local racesPath = getRacesPath()
+  local content = readFile(racesPath)
 
   if content then
-    log("I", "Loading races from: " .. userPath)
+    log("I", "Loading races from: " .. racesPath)
     local success, data = pcall(jsonDecode, content)
     if success and data and data.races then
       loadedRaces = data.races
@@ -494,8 +460,8 @@ local function spawnAdversary()
 
   -- Apply rotation correction: spawnNewVehicle applies quat(0,0,1,0) internally,
   -- so we pre-multiply by inverse to get the correct facing direction
-  local correction = quat(0, 0, 1, 0):inversed()
-  rotation = correction * rotation
+  -- local correction = quat(0, 0, 1, 0):inversed()
+  -- rotation = correction * rotation
 
   -- Build spawn options
   local spawnOptions = {
@@ -539,7 +505,6 @@ local function startAdversaryRacing()
   if not advVeh then return end
 
   -- Convert checkpoint coordinates to nearest road waypoint names
-  -- This gives us proper road-aware AI pathfinding via BeamNG's navigation system
   local waypointNames = {}
 
   -- Add all checkpoints
@@ -548,7 +513,7 @@ local function startAdversaryRacing()
       if cp.node then
         local pos = vec3(cp.node.x, cp.node.y, cp.node.z)
         local wpName, _, dist = map.findClosestRoad(pos)
-        if wpName and dist < 50 then  -- Only use if within 50m of a road
+        if wpName and dist < 50 then
           table.insert(waypointNames, wpName)
           log("I", string.format("Checkpoint -> waypoint '%s' (%.1fm away)", wpName, dist))
         else
@@ -571,7 +536,6 @@ local function startAdversaryRacing()
 
   if #waypointNames == 0 then
     log("W", "No road waypoints found for AI - falling back to direct coordinates")
-    -- Fallback: try script mode with coordinates (will teleport but at least works)
     startAdversaryRacingFallback()
     return
   end
@@ -579,8 +543,7 @@ local function startAdversaryRacing()
   -- Build waypoint list string for AI command
   local wpListStr = '{"' .. table.concat(waypointNames, '","') .. '"}'
 
-  -- Set up AI for racing with road-aware pathfinding
-  -- Uses wpTargetList which follows roads between waypoints
+  -- Set up AI for racing
   advVeh:queueLuaCommand('ai.setMode("manual")')
   advVeh:queueLuaCommand('ai.setRacing(true)')
   advVeh:queueLuaCommand('ai.driveInLane("on")')
@@ -599,7 +562,7 @@ local function startAdversaryRacing()
   log("I", "Adversary AI started racing with " .. #waypointNames .. " road waypoints")
 end
 
--- Fallback: Use script mode if no road waypoints found (will teleport to first point)
+-- Fallback: Use script mode if no road waypoints found
 startAdversaryRacingFallback = function()
   local advVeh = be:getObjectByID(activeRace.adversaryVehId)
   if not advVeh then return end
@@ -630,7 +593,7 @@ startAdversaryRacingFallback = function()
   advVeh:queueLuaCommand('ai.setMode("manual")')
   advVeh:queueLuaCommand(string.format('ai.driveUsingPath({script = %s, aggression = 0.7})', scriptStr))
 
-  log("W", "Using fallback script mode (AI may teleport)")
+  log("W", "Using fallback script mode")
 end
 
 local function placeBet(amount, isPinkSlip, inventoryId)
@@ -1346,10 +1309,6 @@ local function teleportPlayerToStart(raceData)
   -- Build position and rotation
   local pos = vec3(startPos.x, startPos.y, startPos.z)
   local rot = startRot and quat(startRot.x, startRot.y, startRot.z, startRot.w) or quat(0, 0, 0, 1)
-
-  -- safeTeleport multiplies by quat(0,0,1,0), so pre-multiply by inverse to cancel
-  local correction = quat(0, 0, 1, 0):inversed()
-  rot = correction * rot
 
   -- Use spawn.safeTeleport if available, otherwise direct set
   if spawn and spawn.safeTeleport then

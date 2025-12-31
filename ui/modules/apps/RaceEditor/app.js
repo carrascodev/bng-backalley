@@ -35,8 +35,11 @@ angular.module('beamng.apps')
     showSpawns: true,
     showCheckpoints: true,
     showFinish: true,
-    showSettings: false
+    showSettings: false,
+    showAIWaypoints: false
   };
+
+  $scope.aiWaypoints = [];
 
   $scope.settings = {
     minBet: 1000,
@@ -159,12 +162,21 @@ angular.module('beamng.apps')
     bngApi.engineLua('extensions.carTheft_raceEditorUI.clearMarkers()');
   };
 
+  // ==================== AI WAYPOINTS ====================
+
+  $scope.calculateAIWaypoints = function() {
+    bngApi.engineLua('extensions.carTheft_raceEditorUI.calculateAIWaypoints()');
+  };
+
+  $scope.teleportToAIWaypoint = function(index) {
+    bngApi.engineLua('extensions.carTheft_raceEditorUI.teleportToAIWaypoint(' + index + ')');
+  };
+
   // ==================== EDITING TOGGLE ====================
 
   $scope.toggleEditing = function() {
     $scope.editor.active = !$scope.editor.active;
     if ($scope.editor.active) {
-      bngApi.engineLua('extensions.load("carTheft_raceEditorUI")');
       bngApi.engineLua('extensions.carTheft_raceEditorUI.startEditing()');
       $scope.loadTrackList();
     } else {
@@ -280,6 +292,12 @@ angular.module('beamng.apps')
         finish: null
       };
       $scope.loadTrackList();
+    });
+  });
+
+  $scope.$on('RaceEditorAIWaypoints', function(event, data) {
+    $scope.$evalAsync(function() {
+      $scope.aiWaypoints = data || [];
     });
   });
 

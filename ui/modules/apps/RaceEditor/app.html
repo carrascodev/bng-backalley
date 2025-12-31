@@ -16,10 +16,9 @@
     <div class="re-card">
       <div class="re-card-label">TRACK</div>
       <div class="re-track-row">
-        <select class="re-select" ng-model="editor.currentTrackId" ng-change="selectTrack()">
-          <option value="">-- Select Track --</option>
-          <option ng-repeat="track in trackList" value="{{ track.id }}">{{ track.name }}</option>
-        </select>
+        <md-select class="re-select" ng-model="editor.currentTrackId" ng-change="selectTrack()" placeholder="-- Select Track --">
+          <md-option ng-value="track.id" ng-repeat="track in trackList">{{ track.name }}</md-option>
+        </md-select>
       </div>
       <div class="re-track-row">
         <input type="text" ng-model="editor.newTrackName" placeholder="New track name..." class="re-input" />
@@ -150,11 +149,37 @@
         </div>
         <div class="re-setting-row">
           <span class="re-setting-label">Difficulty:</span>
-          <select ng-model="settings.difficulty" ng-change="updateSettings()" class="re-select-small">
-            <option value="1">Easy</option>
-            <option value="2">Medium</option>
-            <option value="3">Hard</option>
-          </select>
+          <md-select ng-model="settings.difficulty" ng-change="updateSettings()" class="re-select-small">
+            <md-option ng-value="1">Easy</md-option>
+            <md-option ng-value="2">Medium</md-option>
+            <md-option ng-value="3">Hard</md-option>
+          </md-select>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Waypoints Debug Section -->
+    <div class="re-card" ng-if="editor.currentTrackId">
+      <div class="re-section-header" ng-click="ui.showAIWaypoints = !ui.showAIWaypoints">
+        <span class="re-card-label">AI WAYPOINTS (DEBUG)</span>
+        <span class="re-collapse-icon">{{ ui.showAIWaypoints ? '-' : '+' }}</span>
+      </div>
+
+      <div ng-if="ui.showAIWaypoints" class="re-section-content">
+        <button class="re-btn-small re-btn-add re-full-width" ng-click="calculateAIWaypoints()">Calculate Waypoints</button>
+
+        <div class="re-checkpoint-list" ng-if="aiWaypoints.length > 0">
+          <div ng-repeat="wp in aiWaypoints track by $index" class="re-checkpoint-item">
+            <div class="re-checkpoint-info" ng-click="teleportToAIWaypoint($index)">
+              <span class="re-checkpoint-index" ng-class="{'re-wp-finish': wp.type === 'finish'}">{{ wp.type === 'finish' ? 'F' : wp.index }}</span>
+              <span class="re-checkpoint-pos">{{ wp.name }}</span>
+            </div>
+            <span class="re-wp-dist">{{ wp.dist.toFixed(1) }}m</span>
+          </div>
+        </div>
+
+        <div ng-if="aiWaypoints.length === 0" class="re-spawn-empty">
+          Click "Calculate Waypoints" to see AI path
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@
   "races": {
     "new_race": {
       "id": "new_race",
-      "name": "New Race",
+      "name": "PorraCaralho",
       "description": "Custom street race",
       "type": "point_to_point",
       "difficulty": 2,
@@ -76,7 +76,7 @@
     },
     "new_race_1": {
       "id": "new_race_1",
-      "name": "New Race",
+      "name": "SeFude",
       "description": "Custom street race",
       "type": "point_to_point",
       "difficulty": 2,

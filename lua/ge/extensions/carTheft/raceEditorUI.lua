@@ -120,8 +120,8 @@ local function teleportVehicle(pos, rot)
   local rotation = rot and quat(rot.x, rot.y, rot.z, rot.w) or quat(0, 0, 0, 1)
 
   -- safeTeleport multiplies by quat(0,0,1,0), so we pre-multiply by inverse to cancel it
-  local correction = quat(0, 0, 1, 0):inversed()
-  rotation = correction * rotation
+  -- local correction = quat(0, 0, 1, 0):inversed()
+  -- rotation = correction * rotation
 
   spawn.safeTeleport(veh, position, rotation, nil, nil, nil, true)
   return true
@@ -131,51 +131,22 @@ end
 -- File Operations
 ---------------------------------------------------------------------------
 
-local function getUserRacesPath()
-  -- User's BeamNG settings folder (persists across mod updates)
+local function getRacesPath()
   return "settings/" .. RACES_FILENAME
 end
 
-local function getDefaultRacesPath()
-  -- Bundled default in mod folder (deployed with mod)
-  return "car_theft_career/settings/" .. RACES_FILENAME
-end
-
-local function copyDefaultToUserIfNeeded()
-  local userPath = getUserRacesPath()
-  local defaultPath = getDefaultRacesPath()
-  log("I", "DefaultPath:".. defaultPath .. " UserPath: " .. userPath)
-
-  -- Check if user file already exists
-  if readFile(userPath) then
-    log("I", "User has file in settings!")
-    return -- User already has a file, don't override
-  end
-
-  -- Read default from mod
-  local defaultContent = readFile(defaultPath)
-  log("I", "Default content:".. dump(defaultContent))
-  if not defaultContent then
-    return
-  end
-
-  -- Copy default to user path
-  writeFile(userPath, defaultContent)
-  log("I", "Copied default races to user settings")
+local function saveRacesPath()
+  return "car_theft_races/settings/" .. RACES_FILENAME
 end
 
 local function loadRacesFile()
-  -- Ensure user has a copy of default races
-  copyDefaultToUserIfNeeded()
-
-  -- Load from user path
-  local userPath = getUserRacesPath()
-  local content = readFile(userPath)
+  local racesPath = getRacesPath()
+  local content = readFile(racesPath)
 
   if content then
     local success, data = pcall(jsonDecode, content)
     if success and data then
-      log("I", "Loaded races from: " .. userPath)
+      log("I", "Loaded races from: " .. racesPath)
       return data
     end
   end
@@ -195,23 +166,30 @@ local function loadRacesFile()
 end
 
 local function saveRacesFile(data)
-  -- Always save to user path (persists across mod updates)
-  local userPath = getUserRacesPath()
-
   local jsonContent = jsonEncode(data)
   if not jsonContent then
     uiMessage("Failed to encode JSON", "error")
     return false
   end
 
-  local success = writeFile(userPath, jsonContent)
+   -- Save to development path
+  local success = writeFile(saveRacesPath(), jsonContent)
+  local success2 = writeFile(getRacesPath(), jsonContent) -- Also save to main path for immediate use
   if success then
-    log("I", "Saved races to: " .. userPath)
-    return true
+    log("I", "Saved races to: " .. saveRacesPath())
   else
-    uiMessage("Failed to save file to: " .. userPath, "error")
+    uiMessage("Failed to save file to: " .. saveRacesPath(), "error")
     return false
   end
+
+  if success2 then
+    log("I", "Also saved races to: " .. getRacesPath())
+  else
+    uiMessage("Failed to save file to: " .. getRacesPath(), "error")
+    return false
+  end
+
+  return true
 end
 
 ---------------------------------------------------------------------------
@@ -571,6 +549,88 @@ function M.setCheckpointWidth(index, width)
   local cp = editorState.trackData.checkpoints[luaIndex]
   if cp and cp.node then
     cp.node.width = width or DEFAULT_CHECKPOINT_WIDTH
+  end
+end
+
+---------------------------------------------------------------------------
+-- AI Waypoint Calculation (for debugging)
+---------------------------------------------------------------------------
+
+-- Calculate road waypoint for a position
+local function findRoadWaypoint(pos)
+  local wpName, wpPos, dist = map.findClosestRoad(vec3(pos.x, pos.y, pos.z))
+  if wpName then
+    -- Get the actual position of this waypoint from the map
+    local mapNodes = map.getMap().nodes
+    if mapNodes and mapNodes[wpName] then
+      local nodePos = mapNodes[wpName].pos
+      return {
+        name = wpName,
+        pos = {x = nodePos.x, y = nodePos.y, z = nodePos.z},
+        dist = dist
+      }
+    end
+  end
+  return nil
+end
+
+-- Calculate all AI waypoints for current track
+function M.calculateAIWaypoints()
+  if not editorState.trackData then
+    uiMessage("No track loaded", "error")
+    return
+  end
+
+  local waypoints = {}
+
+  -- Calculate waypoint for each checkpoint
+  if editorState.trackData.checkpoints then
+    for i, cp in ipairs(editorState.trackData.checkpoints) do
+      if cp.node then
+        local wp = findRoadWaypoint(cp.node)
+        if wp then
+          wp.type = "checkpoint"
+          wp.index = i
+          table.insert(waypoints, wp)
+          log("I", string.format("Checkpoint %d -> waypoint '%s' (%.1fm away)", i, wp.name, wp.dist))
+        else
+          log("W", string.format("Checkpoint %d has no road waypoint nearby", i))
+        end
+      end
+    end
+  end
+
+  -- Calculate waypoint for finish
+  if editorState.trackData.finish and editorState.trackData.finish.pos then
+    local wp = findRoadWaypoint(editorState.trackData.finish.pos)
+    if wp then
+      wp.type = "finish"
+      wp.index = #waypoints + 1
+      table.insert(waypoints, wp)
+      log("I", string.format("Finish -> waypoint '%s' (%.1fm away)", wp.name, wp.dist))
+    else
+      log("W", "Finish has no road waypoint nearby")
+    end
+  end
+
+  -- Store and send to UI
+  editorState.aiWaypoints = waypoints
+  sendToUI('RaceEditorAIWaypoints', waypoints)
+  uiMessage(string.format("Found %d AI waypoints", #waypoints), "success")
+end
+
+-- Teleport to AI waypoint position
+function M.teleportToAIWaypoint(index)
+  if not editorState.aiWaypoints then
+    uiMessage("Calculate AI waypoints first", "error")
+    return
+  end
+
+  local luaIndex = index + 1
+  local wp = editorState.aiWaypoints[luaIndex]
+  if wp and wp.pos then
+    teleportVehicle(wp.pos, nil)
+    uiMessage(string.format("At waypoint '%s'", wp.name), "info")
   end
 end
 
