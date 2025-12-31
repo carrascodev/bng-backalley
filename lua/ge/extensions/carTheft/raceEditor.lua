@@ -90,11 +90,17 @@ local function getPlayerPos()
 end
 
 local function getPlayerRot()
+  -- Use camera quaternion for accurate facing direction
+  local camQuat = core_camera.getQuat()
+  if camQuat then
+    return camQuat
+  end
+
+  -- Fallback to vehicle direction
   local playerVehId = be:getPlayerVehicleID(0)
   if playerVehId then
     local veh = be:getObjectByID(playerVehId)
     if veh then
-      -- Use quatFromDir with direction vectors for correct orientation
       local rot = quatFromDir(veh:getDirectionVector(), veh:getDirectionVectorUp())
       if rot then
         return rot
@@ -398,20 +404,10 @@ function M.save()
     return false
   end
 
-  -- Save to source folder first (car_theft_career), fallback to mods folder
-  local primaryPath = "/car_theft_career/settings/races/" .. mapName .. ".json"
-  local fallbackPath = "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
-
-  -- Try to read from primary path first, then fallback
-  local filePath = primaryPath
+  -- Use mod's settings folder (works for both zipped and unpacked mods)
+  local filePath = "/settings/races/" .. mapName .. ".json"
   local existingRaces = {}
-  local content = readFile(primaryPath)
-  if not content then
-    content = readFile(fallbackPath)
-    if content then
-      filePath = fallbackPath
-    end
-  end
+  local content = readFile(filePath)
 
   if content then
     local success, data = pcall(jsonDecode, content)
@@ -444,22 +440,12 @@ function M.save()
     return false
   end
 
-  -- Write to source folder first (primary), then try fallback
-  local success = writeFile(primaryPath, jsonContent)
-  if success then
-    filePath = primaryPath
-    log("I", "Saved race to source folder: " .. primaryPath)
-  else
-    -- Try fallback path (mods folder)
-    success = writeFile(fallbackPath, jsonContent)
-    if success then
-      filePath = fallbackPath
-      log("I", "Saved race to mods folder: " .. fallbackPath)
-    else
-      uiMessage("Error: Failed to save file. Check console for details.", 5, "error")
-      log("E", "Failed to write to: " .. primaryPath .. " or " .. fallbackPath)
-      return false
-    end
+  -- Write to settings folder
+  local success = writeFile(filePath, jsonContent)
+  if not success then
+    uiMessage("Error: Failed to save file", 5, "error")
+    log("E", "Failed to write to: " .. filePath)
+    return false
   end
 
   uiMessage("Race '" .. editorState.raceName .. "' saved successfully!", 5, "success")
@@ -523,13 +509,9 @@ function M.list()
     return
   end
 
-  -- Try settings folder first, then fallback to mods folder
+  -- Use mod's settings folder
   local filePath = "/settings/races/" .. mapName .. ".json"
   local content = readFile(filePath)
-  if not content then
-    filePath = "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
-    content = readFile(filePath)
-  end
 
   if not content then
     uiMessage("No races found for " .. mapName, 3, "info")
@@ -570,13 +552,9 @@ function M.delete(raceName)
     return false
   end
 
-  -- Try settings folder first, then fallback to mods folder
+  -- Use mod's settings folder
   local filePath = "/settings/races/" .. mapName .. ".json"
   local content = readFile(filePath)
-  if not content then
-    filePath = "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
-    content = readFile(filePath)
-  end
 
   if not content then
     uiMessage("No races file found", 5, "error")

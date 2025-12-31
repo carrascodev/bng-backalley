@@ -15,6 +15,9 @@ local DEFAULT_CHECKPOINT_WIDTH = 12
 local DEFAULT_START_WIDTH = 15
 local DEFAULT_FINISH_WIDTH = 15
 
+-- Race tracks filename (used for both user and default paths)
+local RACES_FILENAME = "backAlley_raceTracks.json"
+
 ---------------------------------------------------------------------------
 -- Editor State
 ---------------------------------------------------------------------------
@@ -70,11 +73,17 @@ local function getPlayerPos()
 end
 
 local function getPlayerRot()
+  -- Use camera quaternion for accurate facing direction
+  local camQuat = core_camera.getQuat()
+  if camQuat then
+    return camQuat
+  end
+
+  -- Fallback to vehicle direction
   local playerVehId = be:getPlayerVehicleID(0)
   if playerVehId then
     local veh = be:getObjectByID(playerVehId)
     if veh then
-      -- Use quatFromDir with direction vectors for correct orientation
       local rot = quatFromDir(veh:getDirectionVector(), veh:getDirectionVectorUp())
       if rot then
         return rot
@@ -107,8 +116,12 @@ local function teleportVehicle(pos, rot)
     return false
   end
 
-  local position = vec3(pos.x, pos.y, pos.z + 0.5) -- Slightly above ground
+  local position = vec3(pos.x, pos.y, pos.z + 0.5)
   local rotation = rot and quat(rot.x, rot.y, rot.z, rot.w) or quat(0, 0, 0, 1)
+
+  -- safeTeleport multiplies by quat(0,0,1,0), so we pre-multiply by inverse to cancel it
+  local correction = quat(0, 0, 1, 0):inversed()
+  rotation = correction * rotation
 
   spawn.safeTeleport(veh, position, rotation, nil, nil, nil, true)
   return true
@@ -118,36 +131,60 @@ end
 -- File Operations
 ---------------------------------------------------------------------------
 
-local function getRacesFilePath()
-  if not editorState.mapName then
-    editorState.mapName = getCurrentMapName()
-  end
-  if not editorState.mapName then return nil end
+local function getUserRacesPath()
+  -- User's BeamNG settings folder (persists across mod updates)
+  return "settings/" .. RACES_FILENAME
+end
 
-  return "/car_theft_career/settings/races/" .. editorState.mapName .. ".json"
+local function getDefaultRacesPath()
+  -- Bundled default in mod folder (deployed with mod)
+  return "car_theft_career/settings/" .. RACES_FILENAME
+end
+
+local function copyDefaultToUserIfNeeded()
+  local userPath = getUserRacesPath()
+  local defaultPath = getDefaultRacesPath()
+  log("I", "DefaultPath:".. defaultPath .. " UserPath: " .. userPath)
+
+  -- Check if user file already exists
+  if readFile(userPath) then
+    log("I", "User has file in settings!")
+    return -- User already has a file, don't override
+  end
+
+  -- Read default from mod
+  local defaultContent = readFile(defaultPath)
+  log("I", "Default content:".. dump(defaultContent))
+  if not defaultContent then
+    return
+  end
+
+  -- Copy default to user path
+  writeFile(userPath, defaultContent)
+  log("I", "Copied default races to user settings")
 end
 
 local function loadRacesFile()
-  local filePath = getRacesFilePath()
-  if not filePath then return nil end
+  -- Ensure user has a copy of default races
+  copyDefaultToUserIfNeeded()
 
-  local content = readFile(filePath)
-  if not content then
-    -- Try fallback path
-    content = readFile("/mods/car_theft_career/settings/races/" .. editorState.mapName .. ".json")
-  end
+  -- Load from user path
+  local userPath = getUserRacesPath()
+  local content = readFile(userPath)
 
   if content then
     local success, data = pcall(jsonDecode, content)
     if success and data then
+      log("I", "Loaded races from: " .. userPath)
       return data
     end
   end
 
   -- Return empty structure if no file exists
+  log("I", "No races file found, starting with empty structure")
   return {
     version = "1.0",
-    map = editorState.mapName,
+    map = editorState.mapName or "unknown",
     races = {},
     encounters = {
       spawnChance = 0.003,
@@ -158,11 +195,8 @@ local function loadRacesFile()
 end
 
 local function saveRacesFile(data)
-  local filePath = getRacesFilePath()
-  if not filePath then
-    uiMessage("Could not determine file path", "error")
-    return false
-  end
+  -- Always save to user path (persists across mod updates)
+  local userPath = getUserRacesPath()
 
   local jsonContent = jsonEncode(data)
   if not jsonContent then
@@ -170,12 +204,12 @@ local function saveRacesFile(data)
     return false
   end
 
-  local success = writeFile(filePath, jsonContent)
+  local success = writeFile(userPath, jsonContent)
   if success then
-    log("I", "Saved races to: " .. filePath)
+    log("I", "Saved races to: " .. userPath)
     return true
   else
-    uiMessage("Failed to save file", "error")
+    uiMessage("Failed to save file to: " .. userPath, "error")
     return false
   end
 end
@@ -254,9 +288,14 @@ function M.loadTrack(trackId)
 end
 
 function M.createNewTrack(name)
-  if not name or name == "" then
-    name = "New Race"
+  -- Require a valid track name
+  if not name or name == "" or name:match("^%s*$") then
+    uiMessage("Track name is required", "error")
+    return
   end
+
+  -- Trim whitespace
+  name = name:match("^%s*(.-)%s*$")
 
   -- Generate unique ID
   local id = string.lower(name):gsub("%s+", "_"):gsub("[^%w_]", "")
@@ -618,30 +657,114 @@ function M.simulate()
   end
 end
 
+-- Store created preview markers
+local previewMarkers = {}
+
+-- Create a visual marker at position with color
+local function createPreviewMarker(name, pos, color, scale)
+  scale = scale or 3
+
+  local marker = createObject('TSStatic')
+  marker.shapeName = "art/shapes/interface/checkpoint_marker.dae"
+  marker:setPosRot(pos.x, pos.y, pos.z + 1, 0, 0, 0, 1)
+  marker.scale = vec3(scale, scale, scale)
+  marker.useInstanceRenderData = true
+
+  -- Set color (RGBA)
+  if color == "green" then
+    marker.instanceColor = ColorF(0, 1, 0, 0.8):asLinear4F()
+  elseif color == "red" then
+    marker.instanceColor = ColorF(1, 0, 0, 0.8):asLinear4F()
+  elseif color == "yellow" then
+    marker.instanceColor = ColorF(1, 1, 0, 0.8):asLinear4F()
+  elseif color == "blue" then
+    marker.instanceColor = ColorF(0, 0.5, 1, 0.8):asLinear4F()
+  else
+    marker.instanceColor = ColorF(1, 1, 1, 0.8):asLinear4F()
+  end
+
+  -- Remove existing marker with same name
+  local existing = scenetree.findObject(name)
+  if existing then
+    existing:delete()
+  end
+
+  marker:registerObject(name)
+  table.insert(previewMarkers, marker)
+
+  return marker
+end
+
 function M.previewRoute()
   if not editorState.trackData then
     uiMessage("Load a track first", "error")
     return
   end
 
-  -- Clear existing markers
+  -- Clear existing markers first
   M.clearMarkers()
 
-  -- TODO: Add visual markers using debug drawing
-  -- For now, show status
-  local status = {
-    "Preview: " .. (editorState.trackData.name or "Unnamed"),
-    "Player spawn: " .. (editorState.trackData.spawns.player and "SET" or "NOT SET"),
-    "Adversaries: " .. #editorState.trackData.spawns.adversaries,
-    "Checkpoints: " .. #editorState.trackData.checkpoints,
-    "Finish: " .. (editorState.trackData.finish and "SET" or "NOT SET")
-  }
+  local markerCount = 0
 
-  uiMessage(table.concat(status, " | "), "info")
+  -- Start line marker (green)
+  if editorState.trackData.spawns and editorState.trackData.spawns.player then
+    local pos = editorState.trackData.spawns.player.pos
+    createPreviewMarker("re_preview_start", pos, "green", 5)
+    markerCount = markerCount + 1
+  end
+
+  -- Adversary spawn markers (red)
+  if editorState.trackData.spawns and editorState.trackData.spawns.adversaries then
+    for i, adv in ipairs(editorState.trackData.spawns.adversaries) do
+      createPreviewMarker("re_preview_adv_" .. i, adv.pos, "red", 4)
+      markerCount = markerCount + 1
+    end
+  end
+
+  -- Checkpoint markers (yellow)
+  if editorState.trackData.checkpoints then
+    for i, cp in ipairs(editorState.trackData.checkpoints) do
+      if cp.node then
+        createPreviewMarker("re_preview_cp_" .. i, cp.node, "yellow", cp.node.width or 12)
+        markerCount = markerCount + 1
+      end
+    end
+  end
+
+  -- Finish marker (blue)
+  if editorState.trackData.finish and editorState.trackData.finish.pos then
+    createPreviewMarker("re_preview_finish", editorState.trackData.finish.pos, "blue", 5)
+    markerCount = markerCount + 1
+  end
+
+  uiMessage("Preview: " .. markerCount .. " markers shown", "success")
+  log("I", "Preview showing " .. markerCount .. " markers")
 end
 
 function M.clearMarkers()
-  -- TODO: Clear visual markers when implemented
+  -- Delete all preview markers
+  for _, marker in ipairs(previewMarkers) do
+    if marker and marker:isValid() then
+      marker:delete()
+    end
+  end
+  previewMarkers = {}
+
+  -- Also clean up by name pattern in case of orphaned markers
+  local names = {"re_preview_start", "re_preview_finish"}
+  for i = 1, 10 do
+    table.insert(names, "re_preview_adv_" .. i)
+    table.insert(names, "re_preview_cp_" .. i)
+  end
+
+  for _, name in ipairs(names) do
+    local obj = scenetree.findObject(name)
+    if obj then
+      obj:delete()
+    end
+  end
+
+  log("I", "Preview markers cleared")
 end
 
 ---------------------------------------------------------------------------

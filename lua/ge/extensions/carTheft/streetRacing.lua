@@ -47,6 +47,9 @@ local RACE_CONFIG = {
 -- AI racer vehicles (must match folder names in /vehicles/)
 local RACER_VEHICLES = {"vivace", "sunburst2", "etk800", "bx", "covet", "etkc", "sbr"}
 
+-- Race tracks filename (used for both user and default paths)
+local RACES_FILENAME = "backAlley_raceTracks.json"
+
 -- Racer name generation
 local RACER_FIRST_NAMES = {"Speed", "Fast", "Quick", "Nitro", "Turbo", "Drift", "Midnight", "Shadow", "Flash", "Thunder"}
 local RACER_LAST_NAMES = {"Mike", "Danny", "Rico", "Tony", "Vic", "Max", "Blade", "Ghost", "Snake", "Wolf"}
@@ -246,11 +249,38 @@ end
 -- Race Data Loading
 ---------------------------------------------------------------------------
 
-local function getRacesFilePath()
-  local mapName = getCurrentMapName()
-  if not mapName then return nil end
-  -- Read from mod's settings folder (bundled with mod)
-  return "/settings/races/" .. mapName .. ".json"
+local function getUserRacesPath()
+  -- User's BeamNG settings folder (persists across mod updates)
+  return "settings/" .. RACES_FILENAME
+end
+
+local function getDefaultRacesPath()
+  -- Bundled default in mod folder (deployed with mod)
+  return "car_theft_career/settings/" .. RACES_FILENAME
+end
+
+local function copyDefaultToUserIfNeeded()
+  local userPath = getUserRacesPath()
+  local defaultPath = getDefaultRacesPath()
+
+  -- Check if user file already exists
+  if readFile(userPath) then
+    return -- User already has a file, don't override
+  end
+
+  -- Read default from mod
+  local defaultContent = readFile(defaultPath)
+  if not defaultContent then
+    log("I", "No default races file to copy")
+    return
+  end
+
+  -- Copy default to user path
+  if writeFile(userPath, defaultContent) then
+    log("I", "Copied default races to user settings: " .. userPath)
+  else
+    log("W", "Failed to copy default races to user settings")
+  end
 end
 
 local function loadRaces()
@@ -261,37 +291,15 @@ local function loadRaces()
     return
   end
 
-  local mapName = getCurrentMapName()
-  if not mapName then
-    log("W", "Could not determine current map")
-    loadedRaces = {}
-    racesLoaded = true
-    return
-  end
+  -- Copy default to user folder if user doesn't have one yet
+  copyDefaultToUserIfNeeded()
 
-  -- Try multiple paths in order of priority:
-  -- 1. Source folder (for development)
-  -- 2. Mod's settings folder (bundled with mod)
-  -- 3. Mods folder (debugging location)
-  local paths = {
-    "/car_theft_career/settings/races/" .. mapName .. ".json",
-    "/settings/races/" .. mapName .. ".json",
-    "/mods/car_theft_career/settings/races/" .. mapName .. ".json"
-  }
-
-  local content = nil
-  local loadedPath = nil
-
-  for _, path in ipairs(paths) do
-    content = readFile(path)
-    if content then
-      loadedPath = path
-      break
-    end
-  end
+  -- Load from user path (should exist now)
+  local userPath = getUserRacesPath()
+  local content = readFile(userPath)
 
   if content then
-    log("I", "Loading races from: " .. loadedPath)
+    log("I", "Loading races from: " .. userPath)
     local success, data = pcall(jsonDecode, content)
     if success and data and data.races then
       loadedRaces = data.races
@@ -483,6 +491,11 @@ local function spawnAdversary()
     log("W", "Cannot spawn adversary - no spawn position available")
     return false
   end
+
+  -- Apply rotation correction: spawnNewVehicle applies quat(0,0,1,0) internally,
+  -- so we pre-multiply by inverse to get the correct facing direction
+  local correction = quat(0, 0, 1, 0):inversed()
+  rotation = correction * rotation
 
   -- Build spawn options
   local spawnOptions = {
@@ -1333,6 +1346,10 @@ local function teleportPlayerToStart(raceData)
   -- Build position and rotation
   local pos = vec3(startPos.x, startPos.y, startPos.z)
   local rot = startRot and quat(startRot.x, startRot.y, startRot.z, startRot.w) or quat(0, 0, 0, 1)
+
+  -- safeTeleport multiplies by quat(0,0,1,0), so pre-multiply by inverse to cancel
+  local correction = quat(0, 0, 1, 0):inversed()
+  rot = correction * rot
 
   -- Use spawn.safeTeleport if available, otherwise direct set
   if spawn and spawn.safeTeleport then

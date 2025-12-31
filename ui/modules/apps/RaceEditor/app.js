@@ -11,13 +11,16 @@ angular.module('beamng.apps')
 .controller('RaceEditorController', ['$scope', '$timeout', function($scope, $timeout) {
 
   // ==================== STATE ====================
+  // All state in objects to survive ng-if child scope
 
-  $scope.editing = false;
-  $scope.currentTrackId = '';
+  $scope.editor = {
+    active: false,
+    currentTrackId: '',
+    newTrackName: ''
+  };
+
   $scope.trackList = [];
-  $scope.newTrackName = '';
 
-  // Track data
   $scope.trackData = {
     name: '',
     spawns: {
@@ -28,13 +31,13 @@ angular.module('beamng.apps')
     finish: null
   };
 
-  // UI state
-  $scope.showSpawns = true;
-  $scope.showCheckpoints = true;
-  $scope.showFinish = true;
-  $scope.showSettings = false;
+  $scope.ui = {
+    showSpawns: true,
+    showCheckpoints: true,
+    showFinish: true,
+    showSettings: false
+  };
 
-  // Race settings
   $scope.settings = {
     minBet: 1000,
     maxBet: 50000,
@@ -47,26 +50,35 @@ angular.module('beamng.apps')
     bngApi.engineLua('extensions.carTheft_raceEditorUI.getTrackList()');
   };
 
-  $scope.selectTrack = function(trackId) {
+  $scope.selectTrack = function() {
+    var trackId = $scope.editor.currentTrackId;
     if (trackId) {
-      $scope.currentTrackId = trackId;
       bngApi.engineLua('extensions.carTheft_raceEditorUI.loadTrack("' + trackId + '")');
     }
   };
 
   $scope.createNewTrack = function() {
-    var name = $scope.newTrackName || 'New Race';
+    var name = $scope.editor.newTrackName;
+    if (!name || name.trim() === '') {
+      console.error('Race Editor: Track name is required');
+      return;
+    }
+    name = name.trim();
     bngApi.engineLua('extensions.carTheft_raceEditorUI.createNewTrack("' + name.replace(/"/g, '\\"') + '")');
-    $scope.newTrackName = '';
+    $scope.editor.newTrackName = '';
   };
 
   $scope.saveTrack = function() {
+    if ($scope.trackData && $scope.trackData.name) {
+      var name = $scope.trackData.name.replace(/"/g, '\\"');
+      bngApi.engineLua('extensions.carTheft_raceEditorUI.updateTrackName("' + name + '")');
+    }
     bngApi.engineLua('extensions.carTheft_raceEditorUI.saveTrack()');
   };
 
   $scope.deleteTrack = function() {
     if (confirm('Delete track "' + $scope.trackData.name + '"?')) {
-      bngApi.engineLua('extensions.carTheft_raceEditorUI.deleteTrack("' + $scope.currentTrackId + '")');
+      bngApi.engineLua('extensions.carTheft_raceEditorUI.deleteTrack("' + $scope.editor.currentTrackId + '")');
     }
   };
 
@@ -150,8 +162,8 @@ angular.module('beamng.apps')
   // ==================== EDITING TOGGLE ====================
 
   $scope.toggleEditing = function() {
-    $scope.editing = !$scope.editing;
-    if ($scope.editing) {
+    $scope.editor.active = !$scope.editor.active;
+    if ($scope.editor.active) {
       bngApi.engineLua('extensions.load("carTheft_raceEditorUI")');
       bngApi.engineLua('extensions.carTheft_raceEditorUI.startEditing()');
       $scope.loadTrackList();
@@ -163,7 +175,7 @@ angular.module('beamng.apps')
   // ==================== SETTINGS ====================
 
   $scope.toggleSettings = function() {
-    $scope.showSettings = !$scope.showSettings;
+    $scope.ui.showSettings = !$scope.ui.showSettings;
   };
 
   $scope.updateSettings = function() {
@@ -183,7 +195,6 @@ angular.module('beamng.apps')
 
   $scope.formatRot = function(rot) {
     if (!rot) return '';
-    // Convert quaternion to yaw angle for display
     var yaw = Math.atan2(2 * (rot.w * rot.z + rot.x * rot.y), 1 - 2 * (rot.y * rot.y + rot.z * rot.z));
     return Math.round(yaw * 180 / Math.PI) + ' deg';
   };
@@ -199,7 +210,7 @@ angular.module('beamng.apps')
   $scope.$on('RaceEditorTrackLoaded', function(event, data) {
     $scope.$evalAsync(function() {
       if (data) {
-        $scope.currentTrackId = data.id || '';
+        $scope.editor.currentTrackId = data.id || '';
         $scope.trackData.name = data.name || '';
         $scope.trackData.spawns = data.spawns || { player: null, adversaries: [] };
         $scope.trackData.checkpoints = data.checkpoints || [];
@@ -247,7 +258,7 @@ angular.module('beamng.apps')
   $scope.$on('RaceEditorNewTrack', function(event, data) {
     $scope.$evalAsync(function() {
       if (data) {
-        $scope.currentTrackId = data.id;
+        $scope.editor.currentTrackId = data.id;
         $scope.trackData = {
           name: data.name,
           spawns: { player: null, adversaries: [] },
@@ -261,7 +272,7 @@ angular.module('beamng.apps')
 
   $scope.$on('RaceEditorDeleted', function(event, data) {
     $scope.$evalAsync(function() {
-      $scope.currentTrackId = '';
+      $scope.editor.currentTrackId = '';
       $scope.trackData = {
         name: '',
         spawns: { player: null, adversaries: [] },
@@ -286,7 +297,6 @@ angular.module('beamng.apps')
 
   // ==================== INITIALIZATION ====================
 
-  // Request initial state when opening
   bngApi.engineLua('extensions.load("carTheft_raceEditorUI")');
 
 }]);
