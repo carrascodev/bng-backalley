@@ -316,20 +316,13 @@ end
 
 -- Also try on extension loaded in case career is already active
 local function onUpdate(dtReal, dtSim, dtRaw)
-  if not overridesApplied then
-    local insurance = getInsuranceModule()
-    local marketplace = getMarketplaceModule()
-    local insuranceMain = getInsuranceMainModule()
-    local inventory = getInventoryModule()
-    if insurance and marketplace and insuranceMain and inventory then
-      applyOverrides()
-    end
+  if career_career and career_career.isActive() then
+    applyOverrides()
   end
 end
 
 -- Expose for manual triggering if needed
 M.applyOverrides = applyOverrides
-
 M.onExtensionLoaded = onExtensionLoaded
 M.onCareerActive = onCareerActive
 M.onCareerModulesActivated = onCareerModulesActivated
