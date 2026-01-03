@@ -807,9 +807,26 @@ end
 ---------------------------------------------------------------------------
 
 function M.onExtensionLoaded()
+  -- Skip initialization if not in career mode
+  if not career_career or not career_career.isActive() then
+    log("I", "Black Market skipped - not in career mode")
+    return
+  end
   log("I", "Black Market loaded")
   -- Don't generate listings on load - wait until UI requests them
   -- This avoids issues with util_configListGenerator not being ready
+end
+
+-- Called when career mode starts or ends
+function M.onCareerActive(active)
+  if active then
+    log("I", "Career activated - Black Market ready")
+  else
+    log("I", "Career deactivated - clearing Black Market data")
+    listings = {}
+    playerListings = {}
+    cart = {}
+  end
 end
 
 return M

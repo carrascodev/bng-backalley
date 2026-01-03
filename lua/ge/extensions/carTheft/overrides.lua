@@ -289,7 +289,23 @@ end
 ---------------------------------------------------------------------------
 
 local function onExtensionLoaded()
+  -- Skip initialization if not in career mode
+  if not career_career or not career_career.isActive() then
+    log("I", "Overrides extension skipped - not in career mode")
+    return
+  end
   log("I", "Overrides extension loaded - waiting for career modules")
+end
+
+-- Called when career mode starts or ends
+local function onCareerActive(active)
+  if active then
+    log("I", "Career activated - applying overrides")
+    applyOverrides()
+  else
+    log("I", "Career deactivated - overrides will be reset on next career start")
+    overridesApplied = false
+  end
 end
 
 -- Try to apply overrides when career modules are activated
@@ -315,6 +331,7 @@ end
 M.applyOverrides = applyOverrides
 
 M.onExtensionLoaded = onExtensionLoaded
+M.onCareerActive = onCareerActive
 M.onCareerModulesActivated = onCareerModulesActivated
 M.onUpdate = onUpdate
 

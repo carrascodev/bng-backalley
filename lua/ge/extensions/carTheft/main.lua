@@ -1323,12 +1323,31 @@ local function onExtensionLoaded()
   log("I", "Car Theft Career mod loaded")
   log("I", "Use console command: carTheft_main.spawnCar() to spawn a stealable vehicle")
 
-  -- Load companion extensions (black market and documentation services)
-  -- These need to be explicitly loaded so they're available for the UI
-  extensions.load("carTheft_blackMarket")
-  extensions.load("carTheft_documentation")
-  extensions.load("carTheft_overrides")
-  log("I", "Loaded companion extensions: blackMarket, documentation, overrides")
+  -- Only load companion extensions if career is active
+  if career_career and career_career.isActive() then
+    extensions.load("carTheft_blackMarket")
+    extensions.load("carTheft_documentation")
+    extensions.load("carTheft_overrides")
+    log("I", "Loaded companion extensions: blackMarket, documentation, overrides")
+  end
+end
+
+-- Called when career mode starts or ends
+local function onCareerActive(active)
+  if active then
+    log("I", "Career activated - loading companion extensions")
+    extensions.load("carTheft_blackMarket")
+    extensions.load("carTheft_documentation")
+    extensions.load("carTheft_overrides")
+  else
+    log("I", "Career deactivated - unloading car theft extensions")
+    resetTheftJob()
+    extensions.unload("carTheft_blackMarket")
+    extensions.unload("carTheft_documentation")
+    extensions.unload("carTheft_overrides")
+    extensions.unload("carTheft_streetRacing")
+    extensions.unload("carTheft_jobManager")
+  end
 end
 
 local function onExtensionUnloaded()
@@ -1930,6 +1949,7 @@ end
 M.onUpdate = onUpdate
 M.onExtensionLoaded = onExtensionLoaded
 M.onExtensionUnloaded = onExtensionUnloaded
+M.onCareerActive = onCareerActive
 M.onCareerModulesActivated = onCareerModulesActivated
 M.onSaveCurrentSaveSlot = onSaveCurrentSaveSlot
 M.onPursuitAction = onPursuitAction

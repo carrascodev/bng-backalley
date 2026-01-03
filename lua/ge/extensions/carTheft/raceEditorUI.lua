@@ -854,6 +854,11 @@ end
 ---------------------------------------------------------------------------
 
 local function onExtensionLoaded()
+  -- Skip initialization if not in career mode
+  if not career_career or not career_career.isActive() then
+    log("I", "Race Editor UI skipped - not in career mode")
+    return
+  end
   log("I", "Race Editor UI extension loaded")
 end
 
@@ -862,11 +867,20 @@ local function onExtensionUnloaded()
   M.stopEditing()
 end
 
+-- Called when career mode starts or ends
+local function onCareerActive(active)
+  if not active then
+    log("I", "Career deactivated - stopping race editor")
+    M.stopEditing()
+  end
+end
+
 ---------------------------------------------------------------------------
 -- Module Exports
 ---------------------------------------------------------------------------
 
 M.onExtensionLoaded = onExtensionLoaded
 M.onExtensionUnloaded = onExtensionUnloaded
+M.onCareerActive = onCareerActive
 
 return M
