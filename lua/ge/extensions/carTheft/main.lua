@@ -54,7 +54,7 @@ local theftJob = {
 local spawnedStealableVehicles = {}
 
 -- Note: Document processing and heat are now stored on vehicle inventory data
--- See: veh.pendingDocTier, veh.pendingDocRemainingSeconds, veh.pendingDocLastUpdate, veh.pendingDocRequiredHours, veh.pendingDocReady
+-- See: veh.pendingDocTier, veh.pendingDocRemainingSeconds, veh.pendingDocRequiredHours, veh.pendingDocReady
 -- See: veh.heatLevel, veh.heatLastUpdate
 
 -- Police inspection cooldown
@@ -944,7 +944,10 @@ local function getGameTimeSeconds()
   return os.time()
 end
 
--- Update document processing timers based on game time
+-- Session-only tracking of last game time (not saved, resets each session)
+local docTimerLastUpdate = {}
+
+-- Update document processing timers using in-game time
 local function updateDocumentTimers(dtSim)
   if not career_modules_inventory then return end
   local vehicles = career_modules_inventory.getVehicles()
@@ -955,13 +958,13 @@ local function updateDocumentTimers(dtSim)
   for invId, veh in pairs(vehicles) do
     -- Only process vehicles with pending documents
     if veh.isStolen and veh.pendingDocTier and not veh.pendingDocReady then
-      local lastUpdate = veh.pendingDocLastUpdate or currentGameTime
+      -- Get last update for this vehicle (session-only, defaults to current time)
+      local lastUpdate = docTimerLastUpdate[invId] or currentGameTime
       local gameTimeDelta = currentGameTime - lastUpdate
 
-      -- Only decrement if time moved forward (handles session reloads gracefully)
+      -- Only decrement if time moved forward
       if gameTimeDelta > 0 then
-        local remaining = veh.pendingDocRemainingSeconds or 0
-        remaining = remaining - gameTimeDelta
+        local remaining = (veh.pendingDocRemainingSeconds or 0) - gameTimeDelta
         veh.pendingDocRemainingSeconds = remaining
 
         if remaining <= 0 then
@@ -974,8 +977,8 @@ local function updateDocumentTimers(dtSim)
         end
       end
 
-      -- Always update the last check time
-      veh.pendingDocLastUpdate = currentGameTime
+      -- Update session tracker
+      docTimerLastUpdate[invId] = currentGameTime
     end
   end
 end
@@ -1655,8 +1658,7 @@ M.startDocumentProcessing = function(inventoryId, tier, requiredHours)
   local veh = vehicles[inventoryId]
   veh.pendingDocTier = tier
   veh.pendingDocRequiredHours = requiredHours or 8
-  veh.pendingDocRemainingSeconds = (requiredHours or 8) * 3600  -- Countdown timer
-  veh.pendingDocLastUpdate = getGameTimeSeconds()  -- Track last update time for time advancement
+  veh.pendingDocRemainingSeconds = (requiredHours or 8) * 3600  -- Countdown in seconds
   veh.pendingDocReady = false
 
   log("I", "Started document processing for " .. tostring(inventoryId) .. " (tier: " .. tier .. ", " .. requiredHours .. " game hours)")
@@ -1734,7 +1736,6 @@ M.finalizeDocumentation = function(inventoryId)
   veh.pendingDocTier = nil
   veh.pendingDocRemainingSeconds = nil
   veh.pendingDocRequiredHours = nil
-  veh.pendingDocLastUpdate = nil
   veh.pendingDocReady = nil
 
   -- Clear heat for this vehicle
