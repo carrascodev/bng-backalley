@@ -1043,7 +1043,33 @@ end
 ---------------------------------------------------------------------------
 
 function M.onExtensionLoaded()
+  -- Skip initialization if not in career mode
+  if not career_career or not career_career.isActive() then
+    log("I", "Job Manager skipped - not in career mode")
+    return
+  end
   log("I", "Job Manager loaded")
+end
+
+-- Called when career mode starts or ends
+function M.onCareerActive(active)
+  if active then
+    log("I", "Career activated - Job Manager ready")
+  else
+    log("I", "Career deactivated - cleaning up jobs")
+    -- Clean up all spawned vehicles
+    for _, job in pairs(activeJobs) do
+      if job.spawnedVehId then
+        local vehObj = be:getObjectByID(job.spawnedVehId)
+        if vehObj then
+          vehObj:delete()
+        end
+      end
+    end
+    activeJobs = {}
+    clearParkingCache()
+    clearVehicleCache()
+  end
 end
 
 function M.onExtensionUnloaded()
@@ -1085,6 +1111,7 @@ function M.onClientEndMission()
 end
 
 M.onUpdate = onUpdate
+M.onCareerActive = M.onCareerActive
 M.JOB_STATE = JOB_STATE
 
 return M

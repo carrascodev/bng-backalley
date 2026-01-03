@@ -591,11 +591,34 @@ function M.listVehicleForSale(inventoryId, askingPrice)
   local listingId = nextListingId
   nextListingId = nextListingId + 1
 
+  -- Use actual vehicle value (accounts for stripped parts, mileage, damage)
+  -- Try multiple sources in order of preference:
+  -- 1. valueCalculator (most accurate but may fail for stolen vehicles without partConditions)
+  -- 2. veh.value (maintained by career system)
+  -- 3. configBaseValue (original base price)
+  -- 4. askingPrice (fallback)
+  local actualValue = nil
+
+  -- Try valueCalculator first (wrapped in pcall to catch partCondition errors)
+  if career_modules_valueCalculator and career_modules_valueCalculator.getInventoryVehicleValue then
+    local success, calcValue = pcall(function()
+      return career_modules_valueCalculator.getInventoryVehicleValue(inventoryId)
+    end)
+    if success and calcValue then
+      actualValue = calcValue
+    end
+  end
+
+  -- Fallback to inventory value or configBaseValue
+  if not actualValue then
+    actualValue = veh.value or veh.configBaseValue or askingPrice
+  end
+
   playerListings[listingId] = {
     id = listingId,
     inventoryId = inventoryId,
     vehicleName = veh.niceName or "Unknown Vehicle",
-    value = veh.configBaseValue or askingPrice,
+    value = actualValue,
     askingPrice = askingPrice,
     hasDocuments = veh.hasDocuments or false,
     offers = {},
@@ -807,9 +830,26 @@ end
 ---------------------------------------------------------------------------
 
 function M.onExtensionLoaded()
+  -- Skip initialization if not in career mode
+  if not career_career or not career_career.isActive() then
+    log("I", "Black Market skipped - not in career mode")
+    return
+  end
   log("I", "Black Market loaded")
   -- Don't generate listings on load - wait until UI requests them
   -- This avoids issues with util_configListGenerator not being ready
+end
+
+-- Called when career mode starts or ends
+function M.onCareerActive(active)
+  if active then
+    log("I", "Career activated - Black Market ready")
+  else
+    log("I", "Career deactivated - clearing Black Market data")
+    listings = {}
+    playerListings = {}
+    cart = {}
+  end
 end
 
 return M

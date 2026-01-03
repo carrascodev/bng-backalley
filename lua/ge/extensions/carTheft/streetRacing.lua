@@ -13,8 +13,7 @@ local raceCheckpoints = require("carTheft/raceCheckpoints")
 -- Dependencies
 M.dependencies = {
   'gameplay_city',
-  'career_career',
-  'career_modules_playerAttributes'
+  'career_career'
 }
 
 -- Load configuration
@@ -1481,7 +1480,21 @@ end
 
 local function onExtensionLoaded()
   log("I", "Street Racing extension loaded")
-  loadRaces()
+  if career_career and career_career.isActive() then
+    loadRaces()
+  end
+end
+
+-- Called when career mode starts or ends
+local function onCareerActive(active)
+  if active then
+    log("I", "Career activated - loading street racing data")
+    loadRaces()
+  else
+    log("I", "Career deactivated - cleaning up street racing")
+    cleanupRace()
+    despawnEncounter()
+  end
 end
 
 local function onExtensionUnloaded()
@@ -1508,6 +1521,7 @@ end
 M.onUpdate = onUpdate
 M.onExtensionLoaded = onExtensionLoaded
 M.onExtensionUnloaded = onExtensionUnloaded
+M.onCareerActive = onCareerActive
 M.onCareerModulesActivated = onCareerModulesActivated
 M.onBeamNGTrigger = onBeamNGTrigger
 

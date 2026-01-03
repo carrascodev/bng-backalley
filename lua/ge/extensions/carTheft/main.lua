@@ -21,25 +21,7 @@ end
 -- Load configuration (use pcall in case it fails)
 local configLoaded, config = pcall(require, "ge/extensions/carTheft/config")
 if not configLoaded then
-  config = {
-    PROXIMITY_DISTANCE = 5,
-    HOTWIRE_TIME = 2.5,
-    REPORT_TIME_MIN = 30,
-    REPORT_TIME_MAX = 60,
-    REPORT_TIME_VALUE_FACTOR = 0.5,
-    ESCALATION_LEVEL2_TIME = 60,
-    ESCALATION_LEVEL3_TIME = 120,
-    INITIAL_PURSUIT_SCORE = 500,
-    LEVEL2_PURSUIT_SCORE = 800,
-    LEVEL3_PURSUIT_SCORE = 1200,
-    REWARD_PERCENT = 0.4,
-    REWARD_MIN = 500,
-    REWARD_MAX = 50000,
-    FINE_BASE = 500,
-    FINE_PERCENT = 0.2,
-    FINE_MAX = 10000,
-    SHOW_STEAL_PROMPT = true,
-  }
+  log("E", "Failed to load carTheft config module")
 end
 
 -- State constants
@@ -1323,12 +1305,31 @@ local function onExtensionLoaded()
   log("I", "Car Theft Career mod loaded")
   log("I", "Use console command: carTheft_main.spawnCar() to spawn a stealable vehicle")
 
-  -- Load companion extensions (black market and documentation services)
-  -- These need to be explicitly loaded so they're available for the UI
-  extensions.load("carTheft_blackMarket")
-  extensions.load("carTheft_documentation")
-  extensions.load("carTheft_overrides")
-  log("I", "Loaded companion extensions: blackMarket, documentation, overrides")
+  -- Only load companion extensions if career is active
+  if career_career and career_career.isActive() then
+    extensions.load("carTheft_blackMarket")
+    extensions.load("carTheft_documentation")
+    extensions.load("carTheft_overrides")
+    log("I", "Loaded companion extensions: blackMarket, documentation, overrides")
+  end
+end
+
+-- Called when career mode starts or ends
+local function onCareerActive(active)
+  if active then
+    log("I", "Career activated - loading companion extensions")
+    extensions.load("carTheft_blackMarket")
+    extensions.load("carTheft_documentation")
+    extensions.load("carTheft_overrides")
+  else
+    log("I", "Career deactivated - unloading car theft extensions")
+    resetTheftJob()
+    extensions.unload("carTheft_blackMarket")
+    extensions.unload("carTheft_documentation")
+    extensions.unload("carTheft_overrides")
+    extensions.unload("carTheft_streetRacing")
+    extensions.unload("carTheft_jobManager")
+  end
 end
 
 local function onExtensionUnloaded()
@@ -1572,6 +1573,24 @@ M.getStolenVehicles = function()
   local stolen = {}
   for invId, veh in pairs(vehicles) do
     if veh.isStolen then
+      -- Use actual vehicle value (accounts for stripped parts, mileage, damage)
+      -- Try valueCalculator first, fall back to inventory value or configBaseValue
+      local actualValue = nil
+
+      if career_modules_valueCalculator and career_modules_valueCalculator.getInventoryVehicleValue then
+        local success, calcValue = pcall(function()
+          return career_modules_valueCalculator.getInventoryVehicleValue(invId)
+        end)
+        if success and calcValue then
+          actualValue = calcValue
+        end
+      end
+
+      -- Fallback chain: veh.value -> configBaseValue -> 0
+      if not actualValue then
+        actualValue = veh.value or veh.configBaseValue or 0
+      end
+
       table.insert(stolen, {
         inventoryId = invId,
         niceName = veh.niceName or "Unknown Vehicle",
@@ -1579,7 +1598,7 @@ M.getStolenVehicles = function()
         isStolen = true,
         hasDocuments = veh.hasDocuments or false,
         stolenDate = veh.stolenDate,
-        value = veh.configBaseValue or 0
+        value = actualValue
       })
     end
   end
@@ -1930,6 +1949,7 @@ end
 M.onUpdate = onUpdate
 M.onExtensionLoaded = onExtensionLoaded
 M.onExtensionUnloaded = onExtensionUnloaded
+M.onCareerActive = onCareerActive
 M.onCareerModulesActivated = onCareerModulesActivated
 M.onSaveCurrentSaveSlot = onSaveCurrentSaveSlot
 M.onPursuitAction = onPursuitAction

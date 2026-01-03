@@ -76,10 +76,23 @@ end
 
 -- Register for carTheft UI updates
 local function onExtensionLoaded()
+  -- Skip initialization if not in career mode
+  if not career_career or not career_career.isActive() then
+    return
+  end
   -- Subscribe to carTheftUpdate events
+end
+
+-- Called when career mode starts or ends
+local function onCareerActive(active)
+  if not active then
+    lastState = nil
+    showingPrompt = false
+  end
 end
 
 M.onCarTheftUpdate = onCarTheftUpdate
 M.onExtensionLoaded = onExtensionLoaded
+M.onCareerActive = onCareerActive
 
 return M
