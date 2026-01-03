@@ -965,6 +965,201 @@ describe("Racing Stats", function()
 end)
 
 ---------------------------------------------------------------------------
+-- Test: Document Timer System
+---------------------------------------------------------------------------
+
+describe("Document Timer System", function()
+  -- Mock the document timer logic (extracted from main.lua)
+  local docTimerLastUpdate = {}  -- Session-only tracking
+
+  local function mockGetGameTimeSeconds(mockTime)
+    return mockTime
+  end
+
+  local function updateDocumentTimer(invId, veh, currentGameTime)
+    if not veh.pendingDocTier or veh.pendingDocReady then
+      return veh
+    end
+
+    -- Get last update for this vehicle (session-only, defaults to current time)
+    local lastUpdate = docTimerLastUpdate[invId] or currentGameTime
+    local gameTimeDelta = currentGameTime - lastUpdate
+
+    -- Only decrement if time moved forward
+    if gameTimeDelta > 0 then
+      local remaining = (veh.pendingDocRemainingSeconds or 0) - gameTimeDelta
+      veh.pendingDocRemainingSeconds = remaining
+
+      if remaining <= 0 then
+        veh.pendingDocReady = true
+        veh.pendingDocRemainingSeconds = 0
+      end
+    end
+
+    -- Update session tracker
+    docTimerLastUpdate[invId] = currentGameTime
+
+    return veh
+  end
+
+  local function resetSessionTracking()
+    docTimerLastUpdate = {}
+  end
+
+  it("should decrement timer when game time moves forward", function()
+    resetSessionTracking()
+    local veh = {
+      pendingDocTier = "budget",
+      pendingDocRemainingSeconds = 3600,  -- 1 hour
+      pendingDocReady = false
+    }
+
+    -- First update at time 1000
+    veh = updateDocumentTimer(1, veh, 1000)
+    assertEqual(veh.pendingDocRemainingSeconds, 3600, "First update should not decrement")
+
+    -- Second update at time 1100 (100 seconds later)
+    veh = updateDocumentTimer(1, veh, 1100)
+    assertEqual(veh.pendingDocRemainingSeconds, 3500, "Should decrement by 100 seconds")
+
+    -- Third update at time 1600 (500 seconds later)
+    veh = updateDocumentTimer(1, veh, 1600)
+    assertEqual(veh.pendingDocRemainingSeconds, 3000, "Should decrement by 500 more seconds")
+  end)
+
+  it("should NOT decrement when game time goes backwards", function()
+    resetSessionTracking()
+    local veh = {
+      pendingDocTier = "standard",
+      pendingDocRemainingSeconds = 3600,
+      pendingDocReady = false
+    }
+
+    -- First update at time 5000
+    veh = updateDocumentTimer(1, veh, 5000)
+    assertEqual(veh.pendingDocRemainingSeconds, 3600, "First update should not decrement")
+
+    -- Time goes forward
+    veh = updateDocumentTimer(1, veh, 5500)
+    assertEqual(veh.pendingDocRemainingSeconds, 3100, "Should decrement by 500")
+
+    -- Time goes BACKWARDS (save reload, time warp, etc.)
+    veh = updateDocumentTimer(1, veh, 4000)
+    assertEqual(veh.pendingDocRemainingSeconds, 3100, "Should NOT change when time goes backwards")
+
+    -- Time goes forward again
+    veh = updateDocumentTimer(1, veh, 4500)
+    assertEqual(veh.pendingDocRemainingSeconds, 2600, "Should resume decrementing from new time")
+  end)
+
+  it("should mark documents ready when timer reaches zero", function()
+    resetSessionTracking()
+    local veh = {
+      pendingDocTier = "budget",
+      pendingDocRemainingSeconds = 100,  -- Only 100 seconds left
+      pendingDocReady = false
+    }
+
+    -- First update
+    veh = updateDocumentTimer(1, veh, 1000)
+    assertFalse(veh.pendingDocReady, "Should not be ready yet")
+
+    -- Time passes beyond remaining
+    veh = updateDocumentTimer(1, veh, 1200)  -- 200 seconds passed, only 100 needed
+    assertTrue(veh.pendingDocReady, "Should be ready now")
+    assertEqual(veh.pendingDocRemainingSeconds, 0, "Remaining should be 0")
+  end)
+
+  it("should not go negative on remaining seconds", function()
+    resetSessionTracking()
+    local veh = {
+      pendingDocTier = "premium",
+      pendingDocRemainingSeconds = 50,
+      pendingDocReady = false
+    }
+
+    veh = updateDocumentTimer(1, veh, 1000)
+    veh = updateDocumentTimer(1, veh, 2000)  -- 1000 seconds passed, way more than 50
+
+    assertEqual(veh.pendingDocRemainingSeconds, 0, "Should clamp to 0, not go negative")
+    assertTrue(veh.pendingDocReady, "Should be ready")
+  end)
+
+  it("should handle new session (no previous lastUpdate)", function()
+    resetSessionTracking()  -- Simulates game restart
+    local veh = {
+      pendingDocTier = "budget",
+      pendingDocRemainingSeconds = 7200,  -- 2 hours saved from previous session
+      pendingDocReady = false
+    }
+
+    -- New session starts at game time 500 (could be any value)
+    veh = updateDocumentTimer(1, veh, 500)
+    assertEqual(veh.pendingDocRemainingSeconds, 7200, "Should not decrement on first frame of new session")
+
+    -- Time moves forward in new session
+    veh = updateDocumentTimer(1, veh, 800)
+    assertEqual(veh.pendingDocRemainingSeconds, 6900, "Should decrement by 300 in new session")
+  end)
+
+  it("should track multiple vehicles independently", function()
+    resetSessionTracking()
+    local veh1 = {
+      pendingDocTier = "budget",
+      pendingDocRemainingSeconds = 1000,
+      pendingDocReady = false
+    }
+    local veh2 = {
+      pendingDocTier = "standard",
+      pendingDocRemainingSeconds = 2000,
+      pendingDocReady = false
+    }
+
+    -- Both start at same time
+    veh1 = updateDocumentTimer(1, veh1, 1000)
+    veh2 = updateDocumentTimer(2, veh2, 1000)
+
+    -- Time passes
+    veh1 = updateDocumentTimer(1, veh1, 1500)
+    veh2 = updateDocumentTimer(2, veh2, 1500)
+
+    assertEqual(veh1.pendingDocRemainingSeconds, 500, "Veh1 should have 500 left")
+    assertEqual(veh2.pendingDocRemainingSeconds, 1500, "Veh2 should have 1500 left")
+  end)
+
+  it("should skip vehicles without pending docs", function()
+    resetSessionTracking()
+    local veh = {
+      pendingDocTier = nil,  -- No pending docs
+      pendingDocRemainingSeconds = 1000,
+      pendingDocReady = false
+    }
+
+    veh = updateDocumentTimer(1, veh, 1000)
+    veh = updateDocumentTimer(1, veh, 2000)
+
+    -- Should be unchanged because no pendingDocTier
+    assertEqual(veh.pendingDocRemainingSeconds, 1000, "Should not change without pendingDocTier")
+  end)
+
+  it("should skip vehicles already ready", function()
+    resetSessionTracking()
+    local veh = {
+      pendingDocTier = "budget",
+      pendingDocRemainingSeconds = 0,
+      pendingDocReady = true  -- Already ready
+    }
+
+    veh = updateDocumentTimer(1, veh, 1000)
+    veh = updateDocumentTimer(1, veh, 2000)
+
+    -- Should remain ready, no changes
+    assertTrue(veh.pendingDocReady, "Should stay ready")
+    assertEqual(veh.pendingDocRemainingSeconds, 0, "Should stay at 0")
+  end)
+end)
+
+---------------------------------------------------------------------------
 -- Print Summary
 ---------------------------------------------------------------------------
 
