@@ -136,7 +136,7 @@ local function getRacesPath()
 end
 
 local function saveRacesPath()
-  return "car_theft_races/settings/" .. RACES_FILENAME
+  return "car_theft_career/settings/" .. RACES_FILENAME
 end
 
 local function loadRacesFile()

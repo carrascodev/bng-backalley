@@ -22,6 +22,6 @@ cd "$SCRIPT_DIR"
 rm -f "$ZIP_NAME"
 
 # Create zip with mod contents at root (not inside parent folder)
-zip -r "$ZIP_NAME" info.json lua/ scripts/ ui/ -x "*.git*"
+zip -r "$ZIP_NAME" info.json lua/ scripts/ ui/ settings/ -x "*.git*"
 
 echo "Built $ZIP_NAME ($(du -h "$ZIP_NAME" | cut -f1))"
